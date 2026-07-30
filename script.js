@@ -23,6 +23,14 @@ const memories = [
 	{
 		image: PLACEHOLDER_IMAGE,
 		text: "Hier kannst du deinen fuenften persoenlichen Text fuer Mama schreiben."
+	},
+	{
+		image: PLACEHOLDER_IMAGE,
+		text: "Hier kannst du deinen sechsten persoenlichen Text fuer Mama schreiben."
+	},
+	{
+		image: PLACEHOLDER_IMAGE,
+		text: "Hier kannst du deinen siebten persoenlichen Text fuer Mama schreiben."
 	}
 ];
 
