@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Alles Gute zum Geburtstag, Mama!</title>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+	<link rel="stylesheet" href="style.css">
+</head>
+<body>
+	<div class="flower-field" aria-hidden="true">
+		<span class="flower flower-one">&#10047;</span>
+		<span class="flower flower-two">&#10047;</span>
+		<span class="flower flower-three">&#10047;</span>
+		<span class="flower flower-four">&#10047;</span>
+		<span class="flower flower-five">&#10047;</span>
+		<span class="flower flower-six">&#10047;</span>
+		<span class="flower flower-seven">&#10047;</span>
+		<span class="flower flower-eight">&#10047;</span>
+		<span class="leaf leaf-one"></span>
+		<span class="leaf leaf-two"></span>
+		<span class="leaf leaf-three"></span>
+	</div>
+
+	<main class="page-shell">
+		<header class="greeting">
+			<p class="eyebrow">Für die beste Mama</p>
+			<h1>Alles Gute zum<br>Geburtstag, Mama!</h1>
+			<div class="tiny-hearts" aria-hidden="true"><span>&hearts;</span><span>&hearts;</span><span>&hearts;</span></div>
+		</header>
+
+		<section class="surprise" aria-live="polite">
+			<button id="heart-button" class="heart-button" type="button" aria-expanded="false" aria-controls="memory-card">
+				<span class="heart-shape" aria-hidden="true">&hearts;</span>
+				<span class="heart-label">Drück mich</span>
+			</button>
+
+			<article id="memory-card" class="memory-card" hidden>
+				<div class="memory-image-wrap">
+					<img id="memory-image" alt="Erinnerung fuer Mama">
+				</div>
+				<div class="memory-copy">
+					<p class="memory-count" id="memory-count"></p>
+					<p id="memory-text" class="memory-text"></p>
+				</div>
+			</article>
+		</section>
+	</main>
+
+	<script src="script.js"></script>
+</body>
+</html>

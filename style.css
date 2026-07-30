@@ -1,0 +1,168 @@
+:root {
+	--ink: #512e42;
+	--berry: #bd4e72;
+	--rose: #f9b7c7;
+	--petal: #fff4f6;
+	--cream: #fffaf1;
+	--leaf: #729b70;
+	--sun: #f6ca61;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	min-width: 320px;
+	min-height: 100vh;
+	margin: 0;
+	overflow-x: hidden;
+	color: var(--ink);
+	font-family: "Nunito", sans-serif;
+	background:
+		radial-gradient(circle at 6% 20%, rgba(255, 255, 255, .78) 0 2px, transparent 3px),
+		radial-gradient(circle at 83% 70%, rgba(255, 255, 255, .85) 0 2px, transparent 3px),
+		linear-gradient(145deg, #fce5ea 0%, #fff9e9 52%, #dcebd7 100%);
+}
+
+.page-shell {
+	position: relative;
+	z-index: 1;
+	display: grid;
+	min-height: 100vh;
+	padding: 48px 24px 40px;
+	place-items: center;
+}
+
+.greeting {
+	align-self: start;
+	text-align: center;
+}
+
+.eyebrow, .memory-count {
+	margin: 0 0 8px;
+	color: #a44a65;
+	font-size: .82rem;
+	font-weight: 800;
+	letter-spacing: .12em;
+	text-transform: uppercase;
+}
+
+h1 {
+	margin: 0;
+	color: #7e344f;
+	font-family: "DM Serif Display", Georgia, serif;
+	font-size: clamp(2.5rem, 6vw, 5rem);
+	font-weight: 400;
+	line-height: .98;
+}
+
+.tiny-hearts {
+	display: flex;
+	justify-content: center;
+	gap: 11px;
+	margin-top: 16px;
+	color: var(--berry);
+}
+
+.tiny-hearts span:nth-child(2) { color: #e56c8d; transform: translateY(6px) scale(1.35); }
+
+.surprise {
+	display: grid;
+	justify-items: center;
+	width: min(100%, 600px);
+	margin-top: 12px;
+}
+
+.heart-button {
+	display: grid;
+	width: 205px;
+	height: 190px;
+	padding: 0;
+	place-items: center;
+	border: 0;
+	background: transparent;
+	color: var(--berry);
+	cursor: pointer;
+	filter: drop-shadow(0 12px 13px rgba(137, 49, 82, .18));
+	transition: transform .25s ease;
+}
+
+.heart-button:hover, .heart-button:focus-visible { transform: scale(1.08); }
+.heart-button:focus-visible { outline: 3px solid #8f4962; outline-offset: 8px; border-radius: 8px; }
+
+.heart-shape {
+	grid-area: 1 / 1;
+	font-family: Georgia, serif;
+	font-size: 12.5rem;
+	line-height: .75;
+	animation: heartbeat 1.7s ease-in-out infinite;
+}
+
+.heart-label {
+	z-index: 1;
+	grid-area: 1 / 1;
+	margin-top: 17px;
+	color: white;
+	font-size: 1rem;
+	font-weight: 800;
+	letter-spacing: .03em;
+}
+
+.memory-card {
+	display: grid;
+	grid-template-columns: minmax(150px, .85fr) 1.15fr;
+	width: min(100%, 560px);
+	margin-top: 25px;
+	overflow: hidden;
+	border: 1px solid rgba(111, 62, 81, .14);
+	border-radius: 8px;
+	background: rgba(255, 253, 248, .86);
+	box-shadow: 0 17px 45px rgba(117, 78, 69, .18);
+	animation: appear .5s ease both;
+}
+
+.memory-image-wrap { min-height: 190px; background: var(--rose); }
+.memory-image-wrap img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.memory-copy {
+	display: grid;
+	align-content: center;
+	padding: 25px;
+}
+
+.memory-text {
+	margin: 0;
+	font-family: "DM Serif Display", Georgia, serif;
+	font-size: clamp(1.22rem, 3vw, 1.65rem);
+	line-height: 1.17;
+}
+
+.flower-field { position: fixed; inset: 0; overflow: hidden; pointer-events: none; }
+.flower { position: absolute; color: #f59bb2; font-size: clamp(4rem, 9vw, 8rem); text-shadow: 0 3px 0 #fff5f6, 0 0 0 10px rgba(255, 255, 255, .2); opacity: .88; }
+.flower::after { content: ""; position: absolute; inset: 39%; border-radius: 50%; background: var(--sun); }
+.flower-one { top: -24px; left: 5%; transform: rotate(16deg); }
+.flower-two { top: 11%; right: -24px; color: #e982a1; transform: rotate(-12deg); }
+.flower-three { bottom: -33px; left: 2%; color: #f5b25c; transform: rotate(20deg); }
+.flower-four { right: 7%; bottom: 4%; color: #e88bba; transform: rotate(-14deg); }
+.flower-five { top: 40%; left: -32px; color: #efad68; transform: rotate(30deg); }
+.flower-six { top: 30%; right: 9%; font-size: clamp(3rem, 6vw, 5rem); color: #f4a8bf; }
+.flower-seven { bottom: 20%; left: 11%; font-size: clamp(2.8rem, 5vw, 4rem); color: #ed8c9f; }
+.flower-eight { top: 2%; right: 20%; font-size: clamp(2.5rem, 5vw, 4rem); color: #edb263; }
+.leaf { position: absolute; width: 88px; height: 28px; border-radius: 100% 0 100% 0; background: var(--leaf); opacity: .7; }
+.leaf-one { bottom: 12%; left: 23%; transform: rotate(44deg); }
+.leaf-two { top: 25%; left: 15%; transform: rotate(-44deg); }
+.leaf-three { right: 19%; bottom: 28%; transform: rotate(137deg); }
+
+@keyframes heartbeat { 0%, 100% { transform: scale(1); } 11% { transform: scale(1.08); } 22% { transform: scale(1); } }
+@keyframes appear { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
+
+@media (max-width: 520px) {
+	.page-shell { padding: 36px 18px 28px; }
+	.heart-button { width: 180px; height: 160px; }
+	.heart-shape { font-size: 11rem; }
+	.memory-card { grid-template-columns: 1fr; }
+	.memory-image-wrap { height: 205px; min-height: 0; }
+	.memory-copy { padding: 19px 21px 23px; }
+	.flower-six, .flower-seven { display: none; }
+}
