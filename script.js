@@ -5,36 +5,36 @@ const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
 
 const memories = [
 	{
-		image: PLACEHOLDER_IMAGE,
-		text: "Hier kommt dein erster persoenlicher Geburtstagsgruß hin."
+		image: "Bilder/IMG-20260730-WA0028.jpg",
+		text: "Es war eine schöne und lustige Zeit bis jetzt mit dir."
 	},
 	{
-		image: PLACEHOLDER_IMAGE,
-		text: "Hier kannst du einen weiteren kleinen Text fuer Mama schreiben."
+		image: "Bilder/IMG-20260730-WA0027.jpg",
+		text: "Mit dir sind Ausflüge immer schön und lustig."
 	},
 	{
-		image: PLACEHOLDER_IMAGE,
-		text: "Hier kannst du einen weiteren kleinen Text fuer Mama schreiben."
+		image: "Bilder/IMG-20260730-WA0023.jpg",
+		text: "Du geniesst jeden aaugenblick zusammen."
 	},
 	{
-		image: PLACEHOLDER_IMAGE,
-		text: "Hier kannst du deinen vierten persoenlichen Text fuer Mama schreiben."
+		image: "Bilder/IMG-20260730-WA0018.jpg",
+		text: "An oster freuen wir uns immer auf die eier!! Danke viel mals das du dir die zeit nimmst!."
 	},
 	{
-		image: PLACEHOLDER_IMAGE,
-		text: "Hier kannst du deinen fuenften persoenlichen Text fuer Mama schreiben."
+		image: "Bilder/IMG-20260730-WA0025.jpg",
+		text: "An weinachten und auch sonst nimmst du dir immer die zeit für uns etwas leckeres zu kochen."
 	},
 	{
-		image: PLACEHOLDER_IMAGE,
-		text: "Hier kannst du deinen sechsten persoenlichen Text fuer Mama schreiben."
+		image: "Bilder/IMG-20260730-WA0030.jpg",
+		text: "Es ist immer schön mit dir zeit zu verbringen."
 	},
 	{
-		image: PLACEHOLDER_IMAGE,
-		text: "Hier kannst du deinen siebten persoenlichen Text fuer Mama schreiben."
+		image: "Bilder/IMG-20260730-WA0031.jpg",
+		text: "Sogar bei kälte lachen wir zusammen und du kannst nicht wiederstehen bilder zu machen😂❤❤."
 	}
 ];
 
-const DISPLAY_DURATION = 20_000;
+const DISPLAY_DURATION = 10_000;
 
 const heartButton = document.querySelector("#heart-button");
 const memoryCard = document.querySelector("#memory-card");
@@ -53,7 +53,12 @@ function showMemory(index) {
 }
 
 function showNextMemory() {
-	activeMemoryIndex = (activeMemoryIndex + 1) % memories.length;
+	if (activeMemoryIndex >= memories.length - 1) {
+		window.clearInterval(rotationTimer);
+		return;
+	}
+
+	activeMemoryIndex += 1;
 	showMemory(activeMemoryIndex);
 }
 
