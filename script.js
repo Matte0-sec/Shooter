@@ -121,7 +121,12 @@
     camera.add(gun);
     scene.add(camera);
 
-    const enemyBodyMat = material(0xe46b5d);
+    const enemyTypes = {
+      normal: { body: material(0xe46b5d), health: 3, speed: 1, scale: 1, damage: 10, score: 100 },
+      fast: { body: material(0xf1d05e), health: 2, speed: 1.6, scale: 0.85, damage: 10, score: 100 },
+      armored: { body: material(0x739cdb), health: 8, speed: 0.7, scale: 1.15, damage: 15, score: 200 },
+      boss: { body: material(0xb66ee8), health: 24, speed: 0.8, scale: 1.4, damage: 20, score: 500 }
+    };
     const enemyDarkMat = material(0x343b49);
     const enemyEyeMat = material(0xffd2a0, { emissive: 0xff6a48, emissiveIntensity: 1 });
     const bulletMat = new THREE.MeshBasicMaterial({ color: 0xff765b });
@@ -200,9 +205,9 @@
     }
 
     const spawnPoints = [[0, -32], [0, 32], [-32, 0], [32, 0], [-4, -20], [4, 20], [-20, 4], [20, -4]];
-    function spawnEnemy(index) {
+    function spawnEnemy(index, type = enemyTypes.normal) {
       const group = new THREE.Group();
-      part(group, 0, 1.05, 0, 0.85, 1, 0.48, enemyBodyMat);
+      part(group, 0, 1.05, 0, 0.85, 1, 0.48, type.body);
       part(group, 0, 1.82, 0, 0.6, 0.55, 0.55, enemyDarkMat);
       part(group, 0, 1.84, 0.29, 0.4, 0.12, 0.04, enemyEyeMat);
       part(group, -0.28, 0.35, 0, 0.3, 0.7, 0.38, enemyDarkMat);
@@ -213,8 +218,9 @@
       const points = available.length ? available : spawnPoints;
       const point = points[index % points.length];
       group.position.set(point[0], 0, point[1]);
+      group.scale.setScalar(type.scale);
       scene.add(group);
-      enemies.push({ group, health: 3, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1 });
+      enemies.push({ group, type, health: type.health, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1 });
     }
 
     function updateHud() {
@@ -249,9 +255,18 @@
       player.wave++;
       if (player.wave > 1) player.health = Math.min(100, player.health + 20);
       const count = Math.min(4 + player.wave * 2, 24);
-      for (let i = 0; i < count; i++) spawnEnemy(i);
+      for (let i = 0; i < count; i++) {
+        let type = enemyTypes.normal;
+        if (player.wave % 5 === 0 && i === 0) type = enemyTypes.boss;
+        else if (player.wave >= 3 && i % 5 === 2) type = enemyTypes.armored;
+        else if (player.wave >= 2 && i % 3 === 1) type = enemyTypes.fast;
+        spawnEnemy(i, type);
+      }
       state.waveDelay = 0;
-      showMessage(`WELLE ${player.wave} ${player.wave > 1 ? '· +20 LEBEN' : ''}`);
+      const newEnemy = player.wave === 2 ? ' · SCHNELLE GEGNER'
+        : player.wave === 3 ? ' · GEPANZERTE GEGNER'
+          : player.wave % 5 === 0 ? ' · BOSS' : '';
+      showMessage(`WELLE ${player.wave} ${player.wave > 1 ? '· +20 LEBEN' : ''}${newEnemy}`);
       updateHud();
     }
 
@@ -396,7 +411,7 @@
           if (enemy.health <= 0) {
             scene.remove(enemy.group);
             enemies.splice(enemies.indexOf(enemy), 1);
-            player.score += 100;
+            player.score += enemy.type.score;
           }
           if (player.weapon !== 'rail') break;
         }
@@ -405,7 +420,7 @@
     }
 
     function enemyShoot(enemy, distance) {
-      const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+      const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35 * enemy.type.scale, 0));
       const target = camera.position.clone();
       target.x += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
       target.z += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
@@ -413,15 +428,15 @@
       const mesh = new THREE.Mesh(bulletGeometry, bulletMat);
       mesh.position.copy(origin);
       scene.add(mesh);
-      bullets.push({ mesh, velocity: direction.multiplyScalar(12), life: 4 });
+      bullets.push({ mesh, velocity: direction.multiplyScalar(12), life: 4, damage: enemy.type.damage });
     }
 
-    function hasLineOfSight(enemy, distance) {
-      const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+    function hasLineOfSight(enemy) {
+      const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35 * enemy.type.scale, 0));
       const direction = camera.position.clone().sub(origin).normalize();
       raycaster.set(origin, direction);
       const hit = raycaster.intersectObjects(coverMeshes, false)[0];
-      return !hit || hit.distance > distance;
+      return !hit || hit.distance > origin.distanceTo(camera.position);
     }
 
     function update(dt, now) {
@@ -450,16 +465,17 @@
           const distance = Math.hypot(dx, dz) || 1;
           enemy.group.rotation.y = Math.atan2(dx, dz);
           if (distance > 8) {
-            const step = Math.min(2.2 + player.wave * 0.07, 3.8) * dt;
+            const step = Math.min(2.2 + player.wave * 0.07, 3.8) * enemy.type.speed * dt;
+            const radius = 0.5 * enemy.type.scale;
             const oldX = enemy.group.position.x;
             const oldZ = enemy.group.position.z;
-            moveWithCollision(enemy.group.position, dx / distance * step, dz / distance * step, 0.5);
+            moveWithCollision(enemy.group.position, dx / distance * step, dz / distance * step, radius);
             if (Math.abs(enemy.group.position.x - oldX) + Math.abs(enemy.group.position.z - oldZ) < step * 0.1) {
-              moveWithCollision(enemy.group.position, -dz / distance * step * enemy.strafe, dx / distance * step * enemy.strafe, 0.5);
+              moveWithCollision(enemy.group.position, -dz / distance * step * enemy.strafe, dx / distance * step * enemy.strafe, radius);
             }
           }
           enemy.cooldown -= dt;
-          if (enemy.cooldown <= 0 && distance < 30 && hasLineOfSight(enemy, distance)) {
+          if (enemy.cooldown <= 0 && distance < 30 && hasLineOfSight(enemy)) {
             enemyShoot(enemy, distance);
             enemy.cooldown = Math.max(0.8, 2.4 - player.wave * 0.05) + Math.random();
           }
@@ -473,7 +489,7 @@
           const p = bullet.mesh.position;
           const hitPlayer = Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 0.65 && Math.abs(p.y - camera.position.y) < 0.8;
           if (hitPlayer) {
-            player.health = Math.max(0, player.health - 10);
+            player.health = Math.max(0, player.health - bullet.damage);
             ui.flash.style.opacity = '0.35';
             state.flashUntil = now + 140;
             updateHud();
