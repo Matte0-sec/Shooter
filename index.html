@@ -67,6 +67,27 @@
       <div class="overlay-caption">DEINE STADT. DEIN REKORD.</div>
     </section>
     <button id="fullscreen-button" class="fullscreen-button" type="button" aria-label="Vollbild aktivieren">Vollbild</button>
+    <button id="secret-button" class="secret-button" type="button" aria-label="Geheimes PIN-Board öffnen" hidden></button>
+    <dialog id="pin-board" class="pin-board" aria-labelledby="pin-title">
+      <h2 id="pin-title">PIN-BOARD</h2>
+      <label for="pin-display">PIN eingeben</label>
+      <input id="pin-display" type="password" readonly autocomplete="off">
+      <div id="pin-keys" class="pin-keys">
+        <button type="button" data-digit="1">1</button>
+        <button type="button" data-digit="2">2</button>
+        <button type="button" data-digit="3">3</button>
+        <button type="button" data-digit="4">4</button>
+        <button type="button" data-digit="5">5</button>
+        <button type="button" data-digit="6">6</button>
+        <button type="button" data-digit="7">7</button>
+        <button type="button" data-digit="8">8</button>
+        <button type="button" data-digit="9">9</button>
+        <button type="button" id="pin-clear">C</button>
+        <button type="button" data-digit="0">0</button>
+        <button type="button" id="pin-backspace" aria-label="Letzte Ziffer löschen">⌫</button>
+      </div>
+      <button id="pin-close" class="pin-close" type="button">SCHLIESSEN</button>
+    </dialog>
   </main>
 </body>
 </html>

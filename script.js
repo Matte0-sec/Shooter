@@ -10,7 +10,8 @@
     flash: $('damage-flash'), hit: $('hit-marker'), shop: $('shop'),
     shopMoney: $('shop-money'), shopStatus: $('shop-status'),
     weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
-    menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button')
+    menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button'),
+    secretButton: $('secret-button'), pinBoard: $('pin-board'), pinDisplay: $('pin-display')
   };
 
   async function init() {
@@ -294,6 +295,7 @@
       ui.status.textContent = '';
       ui.overlay.hidden = false;
       ui.hud.hidden = true;
+      ui.secretButton.hidden = false;
       updateHud();
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
     }
@@ -478,6 +480,7 @@
     }
 
     ui.button.addEventListener('click', () => {
+      ui.secretButton.hidden = true;
       if (state.shopOpen) {
         continueFromShop();
         return;
@@ -499,6 +502,24 @@
     });
 
     ui.menuButton.addEventListener('click', showMainMenu);
+    ui.secretButton.addEventListener('click', () => {
+      ui.pinDisplay.value = '';
+      ui.pinBoard.showModal();
+    });
+    $('pin-keys').addEventListener('click', event => {
+      const digit = event.target.dataset.digit;
+      if (digit !== undefined) ui.pinDisplay.value += digit;
+    });
+    $('pin-clear').addEventListener('click', () => { ui.pinDisplay.value = ''; });
+    $('pin-backspace').addEventListener('click', () => {
+      ui.pinDisplay.value = ui.pinDisplay.value.slice(0, -1);
+    });
+    $('pin-close').addEventListener('click', () => {
+      ui.pinDisplay.value = '';
+      ui.pinBoard.close();
+    });
+    ui.pinBoard.addEventListener('cancel', () => { ui.pinDisplay.value = ''; });
+    ui.pinBoard.addEventListener('close', () => { ui.pinDisplay.value = ''; });
 
     function updateFullscreenButton() {
       const isFullscreen = document.fullscreenElement === ui.container.parentElement;

@@ -58,4 +58,15 @@ kbd { display: inline-block; padding: 5px 6px; border: 1px solid #536270; border
 .overlay-caption { position: absolute; right: 35px; bottom: 30px; color: #c1e0db; font-size: 9px; font-weight: 700; letter-spacing: 2px; }
 .fullscreen-button { position: absolute; z-index: 5; top: 82px; right: 30px; padding: 9px 13px; border: 1px solid #536270; background: rgba(9, 13, 24, .82); color: #eefcf8; font-size: 10px; font-weight: 700; letter-spacing: 1px; cursor: pointer; }
 .fullscreen-button:hover { border-color: #78f3d4; color: #78f3d4; }
+.secret-button { position: absolute; z-index: 6; right: 0; bottom: 0; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; cursor: default; }
+.secret-button:focus-visible { outline: 2px solid #78f3d4; outline-offset: -2px; }
+.pin-board { width: min(320px, 90vw); padding: 24px; border: 1px solid #536270; background: #111b31; color: #eefcf8; }
+.pin-board::backdrop { background: rgba(3, 7, 17, .8); }
+.pin-board h2 { margin: 0 0 16px; color: #78f3d4; font: 800 30px "Barlow Condensed", sans-serif; letter-spacing: 2px; }
+.pin-board label { display: block; color: #a9bac8; font-size: 11px; }
+.pin-board input { width: 100%; margin: 8px 0 16px; padding: 10px; border: 1px solid #536270; background: #090d18; color: #eefcf8; font-size: 20px; letter-spacing: 4px; }
+.pin-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pin-keys button, .pin-close { padding: 12px; border: 1px solid #415361; background: #192a34; color: #eefcf8; cursor: pointer; }
+.pin-keys button:hover, .pin-close:hover { border-color: #78f3d4; color: #78f3d4; }
+.pin-close { width: 100%; margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
 @media (max-width: 700px) { .topbar { top: 20px; left: 18px; right: 18px; gap: 18px; }.brand { font-size: 15px; }.brand-mark { width: 30px; height: 30px; font-size: 22px; }.bottom-bar { left: 18px; right: 18px; bottom: 40px; gap: 16px; }.health-panel { width: 110px; }.weapon-panel strong { font-size: 24px; }.controls-hint { left: 18px; font-size: 8px; }.controls-hint span { margin: 0 2px; }.overlay { padding: 24px; background: rgba(6, 11, 22, .87); }.overlay-caption { display: none; }.card-footer { gap: 12px; }.money-info { display: none; } }
