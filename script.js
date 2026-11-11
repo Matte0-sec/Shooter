@@ -130,10 +130,12 @@
     const enemyDarkMat = material(0x343b49);
     const enemyEyeMat = material(0xffd2a0, { emissive: 0xff6a48, emissiveIntensity: 1 });
     const bulletMat = new THREE.MeshBasicMaterial({ color: 0xff765b });
+    const seekerBulletMat = new THREE.MeshBasicMaterial({ color: 0x78f3d4 });
     const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
     const bulletGeometry = new THREE.SphereGeometry(0.13, 8, 6);
     const enemies = [];
     const bullets = [];
+    const seekerBullets = [];
     const keys = new Set();
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
@@ -144,7 +146,8 @@
       rapid: { name: 'RAPID', number: '03', damage: 1, cooldown: 75, cost: 1200, detail: 'SCHNELLFEUER · 1 SCHADEN' },
       carbine: { name: 'CARBINE', number: '04', damage: 2, cooldown: 140, cost: 1500, detail: 'STURMGEWEHR · 2 SCHADEN' },
       twin: { name: 'TWIN', number: '05', damage: 2, cooldown: 420, cost: 2000, detail: 'DOPPELSCHUSS · 2 × 2 SCHADEN' },
-      rail: { name: 'RAIL', number: '06', damage: 3, cooldown: 800, cost: 2800, detail: 'DURCHSCHLAG · 3 SCHADEN' }
+      rail: { name: 'RAIL', number: '06', damage: 3, cooldown: 800, cost: 2800, detail: 'DURCHSCHLAG · 3 SCHADEN' },
+      seeker: { name: 'SEEKER', number: '07', damage: 3, cooldown: 500, cost: 0, detail: 'LENKGESCHOSSE · 3 SCHADEN' }
     };
     const progressKey = 'neon-district-weapons';
     function loadProgress() {
@@ -241,6 +244,7 @@
       document.querySelectorAll('.weapon-card').forEach(card => {
         const item = weapons[card.dataset.weapon];
         const owned = player.ownedWeapons.has(card.dataset.weapon);
+        card.hidden = card.dataset.weapon === 'seeker' && !owned;
         card.disabled = (!owned && player.money < item.cost) || player.weapon === card.dataset.weapon;
         card.classList.toggle('owned', owned);
         card.classList.toggle('equipped', player.weapon === card.dataset.weapon);
@@ -276,6 +280,7 @@
     function openShop() {
       const reward = 250 + (player.wave - 1) * 100;
       player.money += reward;
+      clearSeekerBullets();
       saveProgress();
       state.shopOpen = true;
       state.mainMenu = false;
@@ -337,9 +342,15 @@
       }
     }
 
+    function clearSeekerBullets() {
+      seekerBullets.forEach(bullet => scene.remove(bullet.mesh));
+      seekerBullets.length = 0;
+    }
+
     function clearActors() {
       enemies.forEach(enemy => scene.remove(enemy.group));
       bullets.forEach(bullet => scene.remove(bullet.mesh));
+      clearSeekerBullets();
       enemies.length = 0;
       bullets.length = 0;
     }
@@ -387,11 +398,86 @@
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
     }
 
+    function damageEnemy(enemy, damage, now) {
+      enemy.health -= damage;
+      ui.hit.style.opacity = '1';
+      state.hitUntil = now + 130;
+      if (enemy.health <= 0) {
+        scene.remove(enemy.group);
+        enemies.splice(enemies.indexOf(enemy), 1);
+        player.score += enemy.type.score;
+        if (player.score > player.highscore) {
+          player.highscore = player.score;
+          if (!saveProgress()) showMessage('HIGHSCORE KONNTE NICHT GESPEICHERT WERDEN', 4);
+        }
+      }
+    }
+
+    function nearestEnemy(position) {
+      let nearest = null;
+      let nearestDistance = Infinity;
+      for (const enemy of enemies) {
+        const distance = enemy.group.position.distanceToSquared(position);
+        if (distance < nearestDistance) {
+          nearest = enemy;
+          nearestDistance = distance;
+        }
+      }
+      return nearest;
+    }
+
+    function updateSeekerBullets(dt, now) {
+      for (let i = seekerBullets.length - 1; i >= 0; i--) {
+        const bullet = seekerBullets[i];
+        if (!enemies.includes(bullet.target)) bullet.target = nearestEnemy(bullet.mesh.position);
+        bullet.life -= dt;
+        if (!bullet.target || bullet.life <= 0) {
+          scene.remove(bullet.mesh);
+          seekerBullets.splice(i, 1);
+          continue;
+        }
+        const target = bullet.target.group.position.clone().add(new THREE.Vector3(0, 1.05 * bullet.target.type.scale, 0));
+        const direction = target.sub(bullet.mesh.position);
+        const distance = direction.length();
+        const step = Math.min(24 * dt, distance);
+        if (step <= 0) continue;
+        raycaster.set(bullet.mesh.position, direction.normalize());
+        raycaster.far = step;
+        const targets = new Map(enemies.map(enemy => [enemy.group, enemy]));
+        const hit = raycaster.intersectObjects([...coverMeshes, ...targets.keys()], true)[0];
+        raycaster.far = Infinity;
+        if (hit) {
+          let object = hit.object;
+          while (object && !targets.has(object)) object = object.parent;
+          if (object) {
+            damageEnemy(targets.get(object), weapons.seeker.damage, now);
+            updateHud();
+          }
+          scene.remove(bullet.mesh);
+          seekerBullets.splice(i, 1);
+        } else {
+          bullet.mesh.position.addScaledVector(direction, step);
+        }
+      }
+    }
+
     function shoot(now) {
       const weapon = weapons[player.weapon];
       if (now - state.lastShot < weapon.cooldown) return;
       state.lastShot = now;
       gun.position.z = -0.55;
+      if (player.weapon === 'seeker') {
+        const target = nearestEnemy(camera.position);
+        if (!target) {
+          showMessage('KEIN GEGNER GEFUNDEN');
+          return;
+        }
+        const mesh = new THREE.Mesh(bulletGeometry, seekerBulletMat);
+        mesh.position.copy(camera.position);
+        scene.add(mesh);
+        seekerBullets.push({ mesh, target, life: 4 });
+        return;
+      }
       const angles = player.weapon === 'scatter'
         ? [-0.08, -0.04, 0, 0.04, 0.08]
         : player.weapon === 'twin' ? [-0.015, 0.015] : [0];
@@ -408,20 +494,9 @@
           const enemy = targets.get(object);
           if (hitEnemies.has(enemy)) continue;
           hitEnemies.add(enemy);
-          enemy.health -= weapon.damage;
-          ui.hit.style.opacity = '1';
-          state.hitUntil = now + 130;
-          if (enemy.health <= 0) {
-            scene.remove(enemy.group);
-            enemies.splice(enemies.indexOf(enemy), 1);
-            player.score += enemy.type.score;
-          }
+          damageEnemy(enemy, weapon.damage, now);
           if (player.weapon !== 'rail') break;
         }
-      }
-      if (player.score > player.highscore) {
-        player.highscore = player.score;
-        if (!saveProgress()) showMessage('HIGHSCORE KONNTE NICHT GESPEICHERT WERDEN', 4);
       }
       updateHud();
     }
@@ -463,6 +538,7 @@
           player.verticalSpeed = 0;
         }
         if (state.shooting) shoot(now);
+        updateSeekerBullets(dt, now);
         gun.position.z += (-0.65 - gun.position.z) * Math.min(1, dt * 12);
 
         for (const enemy of enemies) {
@@ -553,6 +629,19 @@
         ui.pinStatus.textContent = saved
           ? 'Zeitstopp freigeschaltet! Drücke im Spiel Alt Gr.'
           : 'Zeitstopp freigeschaltet, aber nicht gespeichert. Drücke im Spiel Alt Gr.';
+      } else if (ui.pinDisplay.value === '4242') {
+        const alreadyOwned = player.ownedWeapons.has('seeker');
+        const previousWeapon = player.weapon;
+        player.ownedWeapons.add('seeker');
+        player.weapon = 'seeker';
+        if (saveProgress()) {
+          ui.pinStatus.textContent = 'SEEKER freigeschaltet und ausgerüstet!';
+        } else {
+          if (!alreadyOwned) player.ownedWeapons.delete('seeker');
+          player.weapon = previousWeapon;
+          ui.pinStatus.textContent = 'SEEKER konnte nicht gespeichert werden. Bitte versuche es erneut.';
+        }
+        updateHud();
       } else {
         ui.pinStatus.textContent = 'Falscher PIN. Bitte versuche es erneut.';
       }
@@ -603,6 +692,10 @@
       const weaponId = card.dataset.weapon;
       const weapon = weapons[weaponId];
       const alreadyOwned = player.ownedWeapons.has(weaponId);
+      if (weaponId === 'seeker' && !alreadyOwned) {
+        ui.shopStatus.textContent = 'Diese Waffe muss zuerst freigeschaltet werden.';
+        return;
+      }
       if (!alreadyOwned && player.money < weapon.cost) {
         ui.shopStatus.textContent = `Dir fehlen noch $${weapon.cost - player.money}.`;
         return;
