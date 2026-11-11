@@ -127,7 +127,8 @@
     const keys = new Set();
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
-    const player = { health: 100, score: 0, wave: 0, yaw: 0, pitch: 0 };
+    const groundHeight = 1.65;
+    const player = { health: 100, score: 0, wave: 0, yaw: 0, pitch: 0, verticalSpeed: 0 };
     const state = { started: false, dead: false, locked: false, shooting: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
     const clock = new THREE.Clock();
 
@@ -204,7 +205,8 @@
       player.wave = 0;
       player.yaw = 0;
       player.pitch = 0;
-      camera.position.set(0, 1.65, 0);
+      player.verticalSpeed = 0;
+      camera.position.set(0, groundHeight, 0);
       camera.rotation.set(0, 0, 0);
       state.dead = false;
       state.started = true;
@@ -279,10 +281,17 @@
         const forward = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
         const sideways = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
         const length = Math.hypot(forward, sideways) || 1;
-        const speed = 7 * dt / length;
+        const sprinting = keys.has('ShiftLeft') || keys.has('ShiftRight');
+        const speed = (sprinting ? 11 : 7) * dt / length;
         const dx = (Math.cos(player.yaw) * sideways - Math.sin(player.yaw) * forward) * speed;
         const dz = (-Math.sin(player.yaw) * sideways - Math.cos(player.yaw) * forward) * speed;
         moveWithCollision(camera.position, dx, dz, 0.45);
+        player.verticalSpeed -= 20 * dt;
+        camera.position.y += player.verticalSpeed * dt;
+        if (camera.position.y <= groundHeight) {
+          camera.position.y = groundHeight;
+          player.verticalSpeed = 0;
+        }
         if (state.shooting) shoot(now);
         gun.position.z += (-0.65 - gun.position.z) * Math.min(1, dt * 12);
 
@@ -380,8 +389,12 @@
       camera.rotation.set(player.pitch, player.yaw, 0);
     });
     document.addEventListener('keydown', event => {
-      if (state.locked && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {
+      if (!state.locked) return;
+      if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight', 'Space'].includes(event.code)) {
         event.preventDefault();
+        if (event.code === 'Space' && !event.repeat && camera.position.y === groundHeight) {
+          player.verticalSpeed = 7.5;
+        }
         keys.add(event.code);
       }
     });
