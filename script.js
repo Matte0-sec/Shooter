@@ -1,83 +1,407 @@
-// HIER DEINE BILDER UND TEXTE EINFUEGEN.
-// Lege Bilder z. B. im Ordner "bilder" ab und ersetze PLACEHOLDER_IMAGE durch "bilder/foto1.jpg".
-// Fuer jede weitere Erinnerung einfach ein neues Objekt innerhalb der eckigen Klammern ergaenzen.
-const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='600' viewBox='0 0 800 600'%3E%3Crect width='800' height='600' fill='%23f9b7c7'/%3E%3Ctext x='400' y='320' text-anchor='middle' font-family='serif' font-size='170' fill='%23fff4f6'%3E%26%239999%3B%3C/text%3E%3C/svg%3E";
+/* global THREE */
+(() => {
+  const $ = id => document.getElementById(id);
+  const ui = {
+    container: $('canvas-container'), hud: $('hud'), overlay: $('overlay'),
+    title: $('overlay-title'), description: $('overlay-description'),
+    controls: $('intro-controls'), button: $('start-button'), status: $('status'),
+    health: $('health'), healthFill: $('health-fill'), wave: $('wave'),
+    score: $('score'), enemies: $('enemies'), message: $('wave-message'),
+    flash: $('damage-flash'), hit: $('hit-marker')
+  };
 
-const memories = [
-	{
-		image: "Bilder/IMG-20260730-WA0028.jpg",
-		text: "Es war eine schöne und lustige Zeit bis jetzt mit dir."
-	},
-	{
-		image: "Bilder/IMG-20260730-WA0027.jpg",
-		text: "Mit dir sind Ausflüge immer schön und lustig."
-	},
-	{
-		image: "Bilder/IMG-20260730-WA0023.jpg",
-		text: "Du geniesst jeden aaugenblick zusammen."
-	},
-	{
-		image: "Bilder/IMG-20260730-WA0018.jpg",
-		text: "An oster freuen wir uns immer auf die eier!! Danke viel mals das du dir die zeit nimmst!."
-	},
-	{
-		image: "Bilder/IMG-20260730-WA0025.jpg",
-		text: "An weinachten und auch sonst nimmst du dir immer die zeit für uns etwas leckeres zu kochen."
-	},
-	{
-		image: "Bilder/IMG-20260730-WA0030.jpg",
-		text: "Es ist immer schön mit dir zeit zu verbringen."
-	},
-	{
-		image: "Bilder/IMG-20260730-WA0031.jpg",
-		text: "Sogar bei kälte lachen wir zusammen und du kannst nicht wiederstehen bilder zu machen😂❤❤."
-	}
-];
+  async function init() {
+    let THREE;
+    try {
+      THREE = await import('https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js');
+    } catch (error) {
+      console.error('Three.js konnte nicht geladen werden:', error);
+      ui.status.textContent = 'Die 3D-Bibliothek konnte nicht geladen werden. Bitte prüfe deine Internetverbindung und lade die Seite neu.';
+      ui.button.textContent = 'LADEN FEHLGESCHLAGEN';
+      return;
+    }
 
-const DISPLAY_DURATION = 10_000;
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch (error) {
+      console.error('WebGL konnte nicht gestartet werden:', error);
+      ui.status.textContent = '3D konnte nicht gestartet werden. Bitte aktiviere WebGL oder versuche einen anderen Browser.';
+      ui.button.textContent = '3D NICHT VERFÜGBAR';
+      return;
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    ui.container.appendChild(renderer.domElement);
 
-const heartButton = document.querySelector("#heart-button");
-const memoryCard = document.querySelector("#memory-card");
-const memoryImage = document.querySelector("#memory-image");
-const memoryText = document.querySelector("#memory-text");
-const memoryCount = document.querySelector("#memory-count");
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x99b9c9);
+    scene.fog = new THREE.Fog(0x99b9c9, 35, 100);
+    const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 150);
+    camera.rotation.order = 'YXZ';
+    scene.add(new THREE.HemisphereLight(0xd7faff, 0x394252, 2));
+    const sun = new THREE.DirectionalLight(0xffe6c6, 2);
+    sun.position.set(-15, 35, 15);
+    scene.add(sun);
 
-let activeMemoryIndex = 0;
-let rotationTimer;
+    const material = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...extra });
+    const groundMat = material(0x53616b);
+    const roadMat = material(0x394850);
+    const lineMat = material(0xd6c890);
+    const buildings = [material(0x435768), material(0x596c78), material(0x667783), material(0x384c5c)];
+    const trimMat = material(0x263e48);
+    const windowMat = material(0x79c4bc, { emissive: 0x376b69, emissiveIntensity: 0.4 });
+    const crateMat = material(0x947b62);
+    const neonMat = material(0x5ff5d0, { emissive: 0x31a789, emissiveIntensity: 1 });
+    const obstacles = [];
+    const coverMeshes = [];
 
-function showMemory(index) {
-	const memory = memories[index];
-	memoryImage.src = memory.image;
-	memoryText.textContent = memory.text;
-	memoryCount.textContent = `Erinnerung ${index + 1} von ${memories.length}`;
-}
+    function box(x, y, z, width, height, depth, mat, solid = false) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
+      mesh.position.set(x, y, z);
+      scene.add(mesh);
+      if (solid) {
+        obstacles.push({ minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 });
+        coverMeshes.push(mesh);
+      }
+      return mesh;
+    }
 
-function showNextMemory() {
-	if (activeMemoryIndex >= memories.length - 1) {
-		window.clearInterval(rotationTimer);
-		return;
-	}
+    box(0, -0.5, 0, 76, 1, 76, groundMat);
+    box(0, 0.01, 0, 14, 0.02, 76, roadMat);
+    box(0, 0.02, 0, 76, 0.02, 14, roadMat);
+    for (let i = -32; i <= 32; i += 8) {
+      if (Math.abs(i) > 8) {
+        box(0, 0.04, i, 0.18, 0.02, 3, lineMat);
+        box(i, 0.04, 0, 3, 0.02, 0.18, lineMat);
+      }
+    }
 
-	activeMemoryIndex += 1;
-	showMemory(activeMemoryIndex);
-}
+    const cityBlocks = [
+      [-27, -27, 12, 12, 17], [-13, -27, 9, 12, 11], [14, -27, 10, 12, 19], [28, -27, 10, 12, 13],
+      [-27, -13, 12, 9, 10], [-13, -13, 9, 9, 15], [14, -13, 10, 9, 12], [28, -13, 10, 9, 18],
+      [-27, 14, 12, 10, 16], [-13, 14, 9, 10, 11], [14, 14, 10, 10, 17], [28, 14, 10, 10, 12],
+      [-27, 28, 12, 10, 12], [-13, 28, 9, 10, 18], [14, 28, 10, 10, 13], [28, 28, 10, 10, 16]
+    ];
+    cityBlocks.forEach(([x, z, w, d, h], index) => {
+      box(x, h / 2, z, w, h, d, buildings[index % buildings.length], true);
+      box(x, h + 0.15, z, w + 0.3, 0.3, d + 0.3, trimMat);
+      for (let y = 2.5; y < h - 1; y += 3) {
+        for (let offset = -w / 2 + 1.5; offset < w / 2 - 0.5; offset += 2.5) {
+          box(x + offset, y, z + d / 2 + 0.02, 1.1, 1.3, 0.04, windowMat);
+          box(x + offset, y, z - d / 2 - 0.02, 1.1, 1.3, 0.04, windowMat);
+        }
+      }
+    });
+    [[-4, -15], [4, -23], [-4, 17], [4, 26], [-19, -4], [-27, 4], [19, 4], [27, -4], [-3, 5], [4, -5]].forEach(([x, z], i) => {
+      box(x, 0.75, z, 2.4, 1.5, 2.4, crateMat, true);
+      box(x, 1.52, z, 2.45, 0.08, 2.45, i % 2 ? trimMat : neonMat);
+    });
+    // Low walls enclose the playable area without blocking the skyline.
+    box(0, 1, -37, 76, 2, 1, trimMat, true);
+    box(0, 1, 37, 76, 2, 1, trimMat, true);
+    box(-37, 1, 0, 1, 2, 76, trimMat, true);
+    box(37, 1, 0, 1, 2, 76, trimMat, true);
 
-heartButton.addEventListener("click", () => {
-	if (!memoryCard.hidden) return;
+    const gun = new THREE.Group();
+    const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.65), material(0x263741, { metalness: 0.4 }));
+    gunBody.position.set(0, 0, -0.25);
+    const gunTop = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.4), neonMat);
+    gunTop.position.set(0, 0.13, -0.3);
+    const gunBarrel = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.13, 0.28), trimMat);
+    gunBarrel.position.set(0, 0.01, -0.66);
+    gun.add(gunBody, gunTop, gunBarrel);
+    gun.position.set(0.42, -0.37, -0.65);
+    camera.add(gun);
+    scene.add(camera);
 
-	if (memories.length === 0) {
-		memoryText.textContent = "Fuege zuerst deine Bilder und Texte in script.js ein.";
-		memoryImage.removeAttribute("src");
-		memoryCount.textContent = "Deine Erinnerungen";
-	} else {
-		showMemory(activeMemoryIndex);
-	}
+    const enemyBodyMat = material(0xe46b5d);
+    const enemyDarkMat = material(0x343b49);
+    const enemyEyeMat = material(0xffd2a0, { emissive: 0xff6a48, emissiveIntensity: 1 });
+    const bulletMat = new THREE.MeshBasicMaterial({ color: 0xff765b });
+    const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
+    const bulletGeometry = new THREE.SphereGeometry(0.13, 8, 6);
+    const enemies = [];
+    const bullets = [];
+    const keys = new Set();
+    const raycaster = new THREE.Raycaster();
+    const center = new THREE.Vector2(0, 0);
+    const player = { health: 100, score: 0, wave: 0, yaw: 0, pitch: 0 };
+    const state = { started: false, dead: false, locked: false, shooting: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
+    const clock = new THREE.Clock();
 
-	memoryCard.hidden = false;
-	heartButton.setAttribute("aria-expanded", "true");
-	heartButton.classList.add("opened");
-	window.clearInterval(rotationTimer);
-	if (memories.length > 1) {
-		rotationTimer = window.setInterval(showNextMemory, DISPLAY_DURATION);
-	}
-});
+    function part(group, x, y, z, w, h, d, mat) {
+      const mesh = new THREE.Mesh(enemyGeometry, mat);
+      mesh.position.set(x, y, z);
+      mesh.scale.set(w, h, d);
+      group.add(mesh);
+    }
+
+    function isBlocked(x, z, radius = 0.45) {
+      return obstacles.some(o => x + radius > o.minX && x - radius < o.maxX && z + radius > o.minZ && z - radius < o.maxZ);
+    }
+
+    function moveWithCollision(position, dx, dz, radius) {
+      if (!isBlocked(position.x + dx, position.z, radius)) position.x += dx;
+      if (!isBlocked(position.x, position.z + dz, radius)) position.z += dz;
+    }
+
+    const spawnPoints = [[0, -32], [0, 32], [-32, 0], [32, 0], [-4, -20], [4, 20], [-20, 4], [20, -4]];
+    function spawnEnemy(index) {
+      const group = new THREE.Group();
+      part(group, 0, 1.05, 0, 0.85, 1, 0.48, enemyBodyMat);
+      part(group, 0, 1.82, 0, 0.6, 0.55, 0.55, enemyDarkMat);
+      part(group, 0, 1.84, 0.29, 0.4, 0.12, 0.04, enemyEyeMat);
+      part(group, -0.28, 0.35, 0, 0.3, 0.7, 0.38, enemyDarkMat);
+      part(group, 0.28, 0.35, 0, 0.3, 0.7, 0.38, enemyDarkMat);
+      part(group, -0.58, 1.1, 0, 0.25, 0.75, 0.3, enemyDarkMat);
+      part(group, 0.58, 1.1, 0, 0.25, 0.75, 0.3, enemyDarkMat);
+      const available = spawnPoints.filter(([x, z]) => Math.hypot(x - camera.position.x, z - camera.position.z) > 12);
+      const points = available.length ? available : spawnPoints;
+      const point = points[index % points.length];
+      group.position.set(point[0], 0, point[1]);
+      scene.add(group);
+      enemies.push({ group, health: 3, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1 });
+    }
+
+    function updateHud() {
+      ui.health.textContent = Math.ceil(player.health);
+      ui.healthFill.style.width = `${player.health}%`;
+      ui.healthFill.style.background = player.health <= 30 ? '#ff746c' : '#6cf4d0';
+      ui.wave.textContent = String(player.wave).padStart(2, '0');
+      ui.score.textContent = String(player.score).padStart(5, '0');
+      ui.enemies.textContent = enemies.length;
+    }
+
+    function showMessage(text, duration = 2.5) {
+      ui.message.textContent = text;
+      ui.message.style.opacity = '1';
+      state.messageUntil = performance.now() + duration * 1000;
+    }
+
+    function startWave() {
+      player.wave++;
+      if (player.wave > 1) player.health = Math.min(100, player.health + 20);
+      const count = Math.min(4 + player.wave * 2, 24);
+      for (let i = 0; i < count; i++) spawnEnemy(i);
+      state.waveDelay = 0;
+      showMessage(`WELLE ${player.wave} ${player.wave > 1 ? '· +20 LEBEN' : ''}`);
+      updateHud();
+    }
+
+    function clearActors() {
+      enemies.forEach(enemy => scene.remove(enemy.group));
+      bullets.forEach(bullet => scene.remove(bullet.mesh));
+      enemies.length = 0;
+      bullets.length = 0;
+    }
+
+    function resetGame() {
+      clearActors();
+      player.health = 100;
+      player.score = 0;
+      player.wave = 0;
+      player.yaw = 0;
+      player.pitch = 0;
+      camera.position.set(0, 1.65, 0);
+      camera.rotation.set(0, 0, 0);
+      state.dead = false;
+      state.started = true;
+      state.shooting = false;
+      state.lastShot = 0;
+      keys.clear();
+      startWave();
+    }
+
+    function showOverlay(title, description, button) {
+      ui.title.innerHTML = title;
+      ui.description.textContent = description;
+      ui.controls.hidden = true;
+      ui.button.innerHTML = `${button} <span>↗</span>`;
+      ui.status.textContent = '';
+      ui.overlay.hidden = false;
+    }
+
+    function endGame() {
+      state.dead = true;
+      state.shooting = false;
+      showOverlay('GAME<br><span>OVER</span>', `Du hast Welle ${player.wave} erreicht und ${player.score} Punkte gesammelt. Schaffst du beim nächsten Versuch mehr?`, 'NOCHMAL SPIELEN');
+      if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
+    }
+
+    function shoot(now) {
+      if (now - state.lastShot < 170) return;
+      state.lastShot = now;
+      gun.position.z = -0.55;
+      raycaster.setFromCamera(center, camera);
+      const targets = enemies.map(enemy => enemy.group);
+      const hits = raycaster.intersectObjects([...coverMeshes, ...targets], true);
+      if (!hits.length) return;
+      let object = hits[0].object;
+      while (object && !enemies.some(enemy => enemy.group === object)) object = object.parent;
+      const index = enemies.findIndex(enemy => enemy.group === object);
+      if (index < 0) return;
+      const enemy = enemies[index];
+      enemy.health--;
+      ui.hit.style.opacity = '1';
+      state.hitUntil = now + 130;
+      if (enemy.health <= 0) {
+        scene.remove(enemy.group);
+        enemies.splice(index, 1);
+        player.score += 100;
+        updateHud();
+      }
+    }
+
+    function enemyShoot(enemy, distance) {
+      const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+      const target = camera.position.clone();
+      target.x += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
+      target.z += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
+      const direction = target.sub(origin).normalize();
+      const mesh = new THREE.Mesh(bulletGeometry, bulletMat);
+      mesh.position.copy(origin);
+      scene.add(mesh);
+      bullets.push({ mesh, velocity: direction.multiplyScalar(12), life: 4 });
+    }
+
+    function hasLineOfSight(enemy, distance) {
+      const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35, 0));
+      const direction = camera.position.clone().sub(origin).normalize();
+      raycaster.set(origin, direction);
+      const hit = raycaster.intersectObjects(coverMeshes, false)[0];
+      return !hit || hit.distance > distance;
+    }
+
+    function update(dt, now) {
+      if (state.locked && !state.dead) {
+        const forward = Number(keys.has('KeyW')) - Number(keys.has('KeyS'));
+        const sideways = Number(keys.has('KeyD')) - Number(keys.has('KeyA'));
+        const length = Math.hypot(forward, sideways) || 1;
+        const speed = 7 * dt / length;
+        const dx = (Math.cos(player.yaw) * sideways - Math.sin(player.yaw) * forward) * speed;
+        const dz = (-Math.sin(player.yaw) * sideways - Math.cos(player.yaw) * forward) * speed;
+        moveWithCollision(camera.position, dx, dz, 0.45);
+        if (state.shooting) shoot(now);
+        gun.position.z += (-0.65 - gun.position.z) * Math.min(1, dt * 12);
+
+        for (const enemy of enemies) {
+          const dx = camera.position.x - enemy.group.position.x;
+          const dz = camera.position.z - enemy.group.position.z;
+          const distance = Math.hypot(dx, dz) || 1;
+          enemy.group.rotation.y = Math.atan2(dx, dz);
+          if (distance > 8) {
+            const step = Math.min(2.2 + player.wave * 0.07, 3.8) * dt;
+            const oldX = enemy.group.position.x;
+            const oldZ = enemy.group.position.z;
+            moveWithCollision(enemy.group.position, dx / distance * step, dz / distance * step, 0.5);
+            if (Math.abs(enemy.group.position.x - oldX) + Math.abs(enemy.group.position.z - oldZ) < step * 0.1) {
+              moveWithCollision(enemy.group.position, -dz / distance * step * enemy.strafe, dx / distance * step * enemy.strafe, 0.5);
+            }
+          }
+          enemy.cooldown -= dt;
+          if (enemy.cooldown <= 0 && distance < 30 && hasLineOfSight(enemy, distance)) {
+            enemyShoot(enemy, distance);
+            enemy.cooldown = Math.max(0.8, 2.4 - player.wave * 0.05) + Math.random();
+          }
+        }
+
+        for (let i = bullets.length - 1; i >= 0; i--) {
+          const bullet = bullets[i];
+          bullet.mesh.position.addScaledVector(bullet.velocity, dt);
+          bullet.life -= dt;
+          const p = bullet.mesh.position;
+          const hitPlayer = Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 0.65 && Math.abs(p.y - camera.position.y) < 0.8;
+          if (hitPlayer) {
+            player.health = Math.max(0, player.health - 10);
+            ui.flash.style.opacity = '0.35';
+            state.flashUntil = now + 140;
+            updateHud();
+          }
+          if (hitPlayer || bullet.life <= 0 || isBlocked(p.x, p.z, 0.1)) {
+            scene.remove(bullet.mesh);
+            bullets.splice(i, 1);
+          }
+          if (player.health <= 0) {
+            endGame();
+            break;
+          }
+        }
+        if (!state.dead && enemies.length === 0) {
+          if (!state.waveDelay) {
+            state.waveDelay = now + 3000;
+            showMessage('ARENA GESÄUBERT · NÄCHSTE WELLE', 3);
+          } else if (now >= state.waveDelay) startWave();
+        }
+      }
+      if (state.messageUntil && now >= state.messageUntil) { ui.message.style.opacity = '0'; state.messageUntil = 0; }
+      if (state.flashUntil && now >= state.flashUntil) { ui.flash.style.opacity = '0'; state.flashUntil = 0; }
+      if (state.hitUntil && now >= state.hitUntil) { ui.hit.style.opacity = '0'; state.hitUntil = 0; }
+      renderer.render(scene, camera);
+    }
+
+    ui.button.addEventListener('click', () => {
+      if (!state.started || state.dead) resetGame();
+      ui.status.textContent = '';
+      try {
+        const request = renderer.domElement.requestPointerLock();
+        if (request && typeof request.catch === 'function') {
+          request.catch(error => {
+            console.error('Maussteuerung fehlgeschlagen:', error);
+            ui.status.textContent = 'Die Maussteuerung konnte nicht aktiviert werden. Bitte erlaube die Maussteuerung und versuche es erneut.';
+          });
+        }
+      } catch (error) {
+        console.error('Maussteuerung fehlgeschlagen:', error);
+        ui.status.textContent = 'Die Maussteuerung konnte nicht aktiviert werden. Bitte versuche einen anderen Browser.';
+      }
+    });
+
+    document.addEventListener('pointerlockchange', () => {
+      state.locked = document.pointerLockElement === renderer.domElement;
+      state.shooting = false;
+      keys.clear();
+      if (state.locked) {
+        ui.overlay.hidden = true;
+        ui.hud.hidden = false;
+        clock.getDelta();
+      } else if (state.started && !state.dead) {
+        showOverlay('PAUSE<br><span>MODUS</span>', 'Die Arena wartet auf dich. Klicke auf Weiter, um wieder einzusteigen.', 'WEITER SPIELEN');
+      }
+    });
+    document.addEventListener('pointerlockerror', () => {
+      ui.status.textContent = 'Die Maussteuerung konnte nicht aktiviert werden. Bitte erlaube die Maussteuerung und versuche es erneut.';
+    });
+    document.addEventListener('mousemove', event => {
+      if (!state.locked) return;
+      player.yaw -= event.movementX * 0.002;
+      player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch - event.movementY * 0.002));
+      camera.rotation.set(player.pitch, player.yaw, 0);
+    });
+    document.addEventListener('keydown', event => {
+      if (state.locked && ['KeyW', 'KeyA', 'KeyS', 'KeyD'].includes(event.code)) {
+        event.preventDefault();
+        keys.add(event.code);
+      }
+    });
+    document.addEventListener('keyup', event => keys.delete(event.code));
+    document.addEventListener('mousedown', event => { if (state.locked && event.button === 0) state.shooting = true; });
+    document.addEventListener('mouseup', event => { if (event.button === 0) state.shooting = false; });
+    window.addEventListener('blur', () => { keys.clear(); state.shooting = false; });
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    camera.position.set(0, 3.2, 6);
+    camera.rotation.set(-0.06, Math.PI, 0);
+    ui.button.disabled = false;
+    ui.button.innerHTML = 'SPIEL STARTEN <span>↗</span>';
+    ui.status.textContent = 'Am besten am Computer mit Maus und Tastatur spielen.';
+    renderer.setAnimationLoop(() => update(Math.min(clock.getDelta(), 0.05), performance.now()));
+  }
+
+  init();
+})();

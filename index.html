@@ -1,54 +1,55 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-	<meta charset="UTF-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<title>Alles Gute zum Geburtstag, Mama!</title>
-	<link rel="preconnect" href="https://fonts.googleapis.com">
-	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-	<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
-	<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#090d18">
+  <title>Neon District – 3D Arena</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 <body>
-	<div class="flower-field" aria-hidden="true">
-		<span class="flower flower-one">&#10047;</span>
-		<span class="flower flower-two">&#10047;</span>
-		<span class="flower flower-three">&#10047;</span>
-		<span class="flower flower-four">&#10047;</span>
-		<span class="flower flower-five">&#10047;</span>
-		<span class="flower flower-six">&#10047;</span>
-		<span class="flower flower-seven">&#10047;</span>
-		<span class="flower flower-eight">&#10047;</span>
-		<span class="leaf leaf-one"></span>
-		<span class="leaf leaf-two"></span>
-		<span class="leaf leaf-three"></span>
-	</div>
+  <main id="game" aria-label="Neon District 3D-Spiel">
+    <div id="canvas-container"></div>
+    <div class="vignette" aria-hidden="true"></div>
+    <div id="damage-flash" aria-hidden="true"></div>
 
-	<main class="page-shell">
-		<header class="greeting">
-			<p class="eyebrow">Für die beste Mama</p>
-			<h1>Alles Gute zum<br>Geburtstag, Mama!</h1>
-			<div class="tiny-hearts" aria-hidden="true"><span>&hearts;</span><span>&hearts;</span><span>&hearts;</span></div>
-		</header>
+    <div id="hud" hidden>
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">N</span><span>NEON <strong>DISTRICT</strong><small>ARENA PROTOCOL</small></span></div>
+        <div class="wave-info"><span>AKTUELLE WELLE</span><strong id="wave">01</strong></div>
+        <div class="score-info"><span>PUNKTE</span><strong id="score">00000</strong></div>
+      </header>
+      <div id="wave-message" class="wave-message" aria-live="polite"></div>
+      <div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+      <div id="hit-marker" aria-hidden="true">×</div>
+      <div class="bottom-bar">
+        <div class="health-panel">
+          <div class="health-label"><span>✚ &nbsp; LEBEN</span><strong id="health">100</strong></div>
+          <div class="health-track"><div id="health-fill"></div></div>
+        </div>
+        <div class="enemy-panel"><span>Gegner übrig</span><strong id="enemies">0</strong></div>
+        <div class="weapon-panel"><span>STANDARD-AUSRÜSTUNG</span><strong>IMPULS <em>01</em></strong><small>UNBEGRENZTE MUNITION</small></div>
+      </div>
+      <div class="controls-hint">W A S D &nbsp; BEWEGEN <span>·</span> MAUS &nbsp; ZIELEN <span>·</span> KLICK &nbsp; FEUERN <span>·</span> ESC &nbsp; PAUSE</div>
+    </div>
 
-		<section class="surprise" aria-live="polite">
-			<button id="heart-button" class="heart-button" type="button" aria-expanded="false" aria-controls="memory-card">
-				<span class="heart-shape" aria-hidden="true">&hearts;</span>
-				<span class="heart-label">Drück mich</span>
-			</button>
-
-			<article id="memory-card" class="memory-card" hidden>
-				<div class="memory-image-wrap">
-					<img id="memory-image" alt="Erinnerung fuer Mama">
-				</div>
-				<div class="memory-copy">
-					<p class="memory-count" id="memory-count"></p>
-					<p id="memory-text" class="memory-text"></p>
-				</div>
-			</article>
-		</section>
-	</main>
-
-	<script src="script.js"></script>
+    <section id="overlay" class="overlay">
+      <div class="overlay-card">
+        <div class="eyebrow"><span></span> SINGLEPLAYER · 3D ARENA</div>
+        <h1 id="overlay-title">NEON<br><span>DISTRICT</span></h1>
+        <p id="overlay-description">Die Stadt gehört den Bots. Schnapp dir deine Ausrüstung, nutze die Deckung und überlebe so viele Wellen wie möglich.</p>
+        <div id="intro-controls" class="intro-controls">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Bewegen</span></div>
+          <div><kbd>MAUS</kbd><span>Zielen &amp; feuern</span></div>
+          <div><kbd>ESC</kbd><span>Pause</span></div>
+        </div>
+        <button id="start-button" type="button" disabled>ARENA WIRD GELADEN <span>↗</span></button>
+        <p id="status" class="status" role="status">Die 3D-Welt wird geladen …</p>
+        <div class="card-footer"><span>ENDLOSE WELLEN</span><span>KEIN DOWNLOAD NÖTIG</span></div>
+      </div>
+      <div class="overlay-caption">DEINE STADT. DEIN REKORD.</div>
+    </section>
+  </main>
 </body>
 </html>
