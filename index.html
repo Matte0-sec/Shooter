@@ -18,6 +18,7 @@
       <header class="topbar">
         <div class="brand"><span class="brand-mark">N</span><span>NEON <strong>DISTRICT</strong><small>ARENA PROTOCOL</small></span></div>
         <div class="wave-info"><span>AKTUELLE WELLE</span><strong id="wave">01</strong></div>
+        <div class="money-info"><span>GELD</span><strong id="money">$000</strong></div>
         <div class="score-info"><span>PUNKTE</span><strong id="score">00000</strong></div>
       </header>
       <div id="wave-message" class="wave-message" aria-live="polite"></div>
@@ -29,7 +30,7 @@
           <div class="health-track"><div id="health-fill"></div></div>
         </div>
         <div class="enemy-panel"><span>Gegner übrig</span><strong id="enemies">0</strong></div>
-        <div class="weapon-panel"><span>STANDARD-AUSRÜSTUNG</span><strong>IMPULS <em>01</em></strong><small>UNBEGRENZTE MUNITION</small></div>
+        <div class="weapon-panel"><span>AUSRÜSTUNG</span><strong id="weapon-name">IMPULS <em>01</em></strong><small id="weapon-detail">UNBEGRENZTE MUNITION</small></div>
       </div>
       <div class="controls-hint">W A S D &nbsp; BEWEGEN <span>·</span> SHIFT &nbsp; SPRINTEN <span>·</span> LEERTASTE &nbsp; SPRINGEN <span>·</span> MAUS &nbsp; ZIELEN &amp; FEUERN <span>·</span> ESC &nbsp; PAUSE</div>
     </div>
@@ -45,6 +46,18 @@
           <div><kbd>LEERTASTE</kbd><span>Springen</span></div>
           <div><kbd>MAUS</kbd><span>Zielen &amp; feuern</span></div>
           <div><kbd>ESC</kbd><span>Pause</span></div>
+        </div>
+        <div id="shop" class="shop" hidden>
+          <div class="shop-balance">DEIN GUTHABEN <strong id="shop-money">$000</strong></div>
+          <div class="shop-items">
+            <button class="weapon-card" type="button" data-weapon="scatter">
+              <span class="weapon-icon">✦</span><span><strong>SCATTER</strong><small>Schrotflinte · 3 SCHADEN</small></span><b>$250</b>
+            </button>
+            <button class="weapon-card" type="button" data-weapon="rapid">
+              <span class="weapon-icon">»</span><span><strong>RAPID</strong><small>Schnellfeuer · 1 SCHADEN</small></span><b>$400</b>
+            </button>
+          </div>
+          <p id="shop-status" class="shop-status" aria-live="polite"></p>
         </div>
         <button id="start-button" type="button" disabled>ARENA WIRD GELADEN <span>↗</span></button>
         <p id="status" class="status" role="status">Die 3D-Welt wird geladen …</p>

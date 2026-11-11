@@ -6,8 +6,10 @@
     title: $('overlay-title'), description: $('overlay-description'),
     controls: $('intro-controls'), button: $('start-button'), status: $('status'),
     health: $('health'), healthFill: $('health-fill'), wave: $('wave'),
-    score: $('score'), enemies: $('enemies'), message: $('wave-message'),
-    flash: $('damage-flash'), hit: $('hit-marker')
+    score: $('score'), money: $('money'), enemies: $('enemies'), message: $('wave-message'),
+    flash: $('damage-flash'), hit: $('hit-marker'), shop: $('shop'),
+    shopMoney: $('shop-money'), shopStatus: $('shop-status'),
+    weaponName: $('weapon-name'), weaponDetail: $('weapon-detail')
   };
 
   async function init() {
@@ -128,8 +130,13 @@
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
     const groundHeight = 1.65;
-    const player = { health: 100, score: 0, wave: 0, yaw: 0, pitch: 0, verticalSpeed: 0 };
-    const state = { started: false, dead: false, locked: false, shooting: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
+    const weapons = {
+      pulse: { name: 'IMPULS', number: '01', damage: 1, cooldown: 170, cost: 0, detail: 'UNBEGRENZTE MUNITION' },
+      scatter: { name: 'SCATTER', number: '02', damage: 3, cooldown: 520, cost: 250, detail: 'SCHROT · 3 SCHADEN' },
+      rapid: { name: 'RAPID', number: '03', damage: 1, cooldown: 75, cost: 400, detail: 'SCHNELLFEUER · 1 SCHADEN' }
+    };
+    const player = { health: 100, score: 0, money: 0, wave: 0, weapon: 'pulse', yaw: 0, pitch: 0, verticalSpeed: 0 };
+    const state = { started: false, dead: false, locked: false, shopOpen: false, shooting: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
     const clock = new THREE.Clock();
 
     function part(group, x, y, z, w, h, d, mat) {
@@ -172,7 +179,17 @@
       ui.healthFill.style.background = player.health <= 30 ? '#ff746c' : '#6cf4d0';
       ui.wave.textContent = String(player.wave).padStart(2, '0');
       ui.score.textContent = String(player.score).padStart(5, '0');
+      ui.money.textContent = `$${String(player.money).padStart(3, '0')}`;
+      ui.shopMoney.textContent = `$${String(player.money).padStart(3, '0')}`;
       ui.enemies.textContent = enemies.length;
+      const weapon = weapons[player.weapon];
+      ui.weaponName.innerHTML = `${weapon.name} <em>${weapon.number}</em>`;
+      ui.weaponDetail.textContent = weapon.detail;
+      document.querySelectorAll('.weapon-card').forEach(card => {
+        const item = weapons[card.dataset.weapon];
+        card.disabled = player.money < item.cost || player.weapon === card.dataset.weapon;
+        card.classList.toggle('equipped', player.weapon === card.dataset.weapon);
+      });
     }
 
     function showMessage(text, duration = 2.5) {
@@ -191,6 +208,45 @@
       updateHud();
     }
 
+    function openShop() {
+      const reward = 250 + (player.wave - 1) * 100;
+      player.money += reward;
+      state.shopOpen = true;
+      state.waveDelay = 0;
+      state.shooting = false;
+      ui.shopStatus.textContent = `+ $${reward} Wellenbelohnung`;
+      ui.title.innerHTML = 'WAFFEN<br><span>SHOP</span>';
+      ui.description.textContent = `Welle ${player.wave} geschafft! Kaufe eine bessere Waffe und starte danach die nächste Welle.`;
+      ui.controls.hidden = true;
+      ui.shop.hidden = false;
+      ui.button.innerHTML = 'NÄCHSTE WELLE <span>↗</span>';
+      ui.status.textContent = '';
+      ui.overlay.hidden = false;
+      updateHud();
+      if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
+    }
+
+    function continueFromShop() {
+      state.shopOpen = false;
+      ui.shop.hidden = true;
+      ui.overlay.hidden = true;
+      startWave();
+      requestPointerLock();
+    }
+
+    function requestPointerLock() {
+      try {
+        const request = renderer.domElement.requestPointerLock();
+        if (request && typeof request.catch === 'function') request.catch(error => {
+          console.error('Maussteuerung fehlgeschlagen:', error);
+          ui.status.textContent = 'Die Maussteuerung konnte nicht aktiviert werden. Bitte erlaube die Maussteuerung und versuche es erneut.';
+        });
+      } catch (error) {
+        console.error('Maussteuerung fehlgeschlagen:', error);
+        ui.status.textContent = 'Die Maussteuerung konnte nicht aktiviert werden. Bitte versuche einen anderen Browser.';
+      }
+    }
+
     function clearActors() {
       enemies.forEach(enemy => scene.remove(enemy.group));
       bullets.forEach(bullet => scene.remove(bullet.mesh));
@@ -202,7 +258,9 @@
       clearActors();
       player.health = 100;
       player.score = 0;
+      player.money = 0;
       player.wave = 0;
+      player.weapon = 'pulse';
       player.yaw = 0;
       player.pitch = 0;
       player.verticalSpeed = 0;
@@ -210,9 +268,11 @@
       camera.rotation.set(0, 0, 0);
       state.dead = false;
       state.started = true;
+      state.shopOpen = false;
       state.shooting = false;
       state.lastShot = 0;
       keys.clear();
+      ui.shop.hidden = true;
       startWave();
     }
 
@@ -220,6 +280,7 @@
       ui.title.innerHTML = title;
       ui.description.textContent = description;
       ui.controls.hidden = true;
+      ui.shop.hidden = true;
       ui.button.innerHTML = `${button} <span>↗</span>`;
       ui.status.textContent = '';
       ui.overlay.hidden = false;
@@ -233,27 +294,32 @@
     }
 
     function shoot(now) {
-      if (now - state.lastShot < 170) return;
+      const weapon = weapons[player.weapon];
+      if (now - state.lastShot < weapon.cooldown) return;
       state.lastShot = now;
       gun.position.z = -0.55;
-      raycaster.setFromCamera(center, camera);
-      const targets = enemies.map(enemy => enemy.group);
-      const hits = raycaster.intersectObjects([...coverMeshes, ...targets], true);
-      if (!hits.length) return;
-      let object = hits[0].object;
-      while (object && !enemies.some(enemy => enemy.group === object)) object = object.parent;
-      const index = enemies.findIndex(enemy => enemy.group === object);
-      if (index < 0) return;
-      const enemy = enemies[index];
-      enemy.health--;
-      ui.hit.style.opacity = '1';
-      state.hitUntil = now + 130;
-      if (enemy.health <= 0) {
-        scene.remove(enemy.group);
-        enemies.splice(index, 1);
-        player.score += 100;
-        updateHud();
+      const angles = player.weapon === 'scatter' ? [-0.08, -0.04, 0, 0.04, 0.08] : [0];
+      for (const angle of angles) {
+        raycaster.setFromCamera(center, camera);
+        raycaster.ray.direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle).normalize();
+        const targets = enemies.map(enemy => enemy.group);
+        const hits = raycaster.intersectObjects([...coverMeshes, ...targets], true);
+        if (!hits.length) continue;
+        let object = hits[0].object;
+        while (object && !enemies.some(enemy => enemy.group === object)) object = object.parent;
+        const index = enemies.findIndex(enemy => enemy.group === object);
+        if (index < 0) continue;
+        const enemy = enemies[index];
+        enemy.health -= weapon.damage;
+        ui.hit.style.opacity = '1';
+        state.hitUntil = now + 130;
+        if (enemy.health <= 0) {
+          scene.remove(enemy.group);
+          enemies.splice(index, 1);
+          player.score += 100;
+        }
       }
+      updateHud();
     }
 
     function enemyShoot(enemy, distance) {
@@ -337,12 +403,7 @@
             break;
           }
         }
-        if (!state.dead && enemies.length === 0) {
-          if (!state.waveDelay) {
-            state.waveDelay = now + 3000;
-            showMessage('ARENA GESÄUBERT · NÄCHSTE WELLE', 3);
-          } else if (now >= state.waveDelay) startWave();
-        }
+        if (!state.dead && enemies.length === 0 && !state.shopOpen) openShop();
       }
       if (state.messageUntil && now >= state.messageUntil) { ui.message.style.opacity = '0'; state.messageUntil = 0; }
       if (state.flashUntil && now >= state.flashUntil) { ui.flash.style.opacity = '0'; state.flashUntil = 0; }
@@ -351,21 +412,26 @@
     }
 
     ui.button.addEventListener('click', () => {
+      if (state.shopOpen) {
+        continueFromShop();
+        return;
+      }
       if (!state.started || state.dead) resetGame();
       ui.status.textContent = '';
-      try {
-        const request = renderer.domElement.requestPointerLock();
-        if (request && typeof request.catch === 'function') {
-          request.catch(error => {
-            console.error('Maussteuerung fehlgeschlagen:', error);
-            ui.status.textContent = 'Die Maussteuerung konnte nicht aktiviert werden. Bitte erlaube die Maussteuerung und versuche es erneut.';
-          });
-        }
-      } catch (error) {
-        console.error('Maussteuerung fehlgeschlagen:', error);
-        ui.status.textContent = 'Die Maussteuerung konnte nicht aktiviert werden. Bitte versuche einen anderen Browser.';
-      }
+      requestPointerLock();
     });
+
+    document.querySelectorAll('.weapon-card').forEach(card => card.addEventListener('click', () => {
+      const weapon = weapons[card.dataset.weapon];
+      if (player.money < weapon.cost) {
+        ui.shopStatus.textContent = `Dir fehlen noch $${weapon.cost - player.money}.`;
+        return;
+      }
+      player.money -= weapon.cost;
+      player.weapon = card.dataset.weapon;
+      ui.shopStatus.textContent = `${weapon.name} ausgerüstet!`;
+      updateHud();
+    }));
 
     document.addEventListener('pointerlockchange', () => {
       state.locked = document.pointerLockElement === renderer.domElement;
@@ -375,7 +441,7 @@
         ui.overlay.hidden = true;
         ui.hud.hidden = false;
         clock.getDelta();
-      } else if (state.started && !state.dead) {
+      } else if (state.started && !state.dead && !state.shopOpen) {
         showOverlay('PAUSE<br><span>MODUS</span>', 'Die Arena wartet auf dich. Klicke auf Weiter, um wieder einzusteigen.', 'WEITER SPIELEN');
       }
     });
