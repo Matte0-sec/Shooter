@@ -22,6 +22,7 @@
         <div class="score-info"><span>PUNKTE</span><strong id="score">00000</strong></div>
       </header>
       <div id="wave-message" class="wave-message" aria-live="polite"></div>
+      <div id="time-status" class="time-status" hidden>ZEIT ANGEHALTEN · ALT GR ZUM FORTSETZEN</div>
       <div class="crosshair" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
       <div id="hit-marker" aria-hidden="true">×</div>
       <div class="bottom-bar">
@@ -86,6 +87,7 @@
         <button type="button" data-digit="0">0</button>
         <button type="button" id="pin-backspace" aria-label="Letzte Ziffer löschen">⌫</button>
       </div>
+      <p id="pin-status" class="pin-status" role="status"></p>
       <button id="pin-close" class="pin-close" type="button">SCHLIESSEN</button>
     </dialog>
   </main>

@@ -11,7 +11,8 @@
     shopMoney: $('shop-money'), shopStatus: $('shop-status'),
     weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
     menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button'),
-    secretButton: $('secret-button'), pinBoard: $('pin-board'), pinDisplay: $('pin-display')
+    secretButton: $('secret-button'), pinBoard: $('pin-board'), pinDisplay: $('pin-display'),
+    pinStatus: $('pin-status'), timeStatus: $('time-status')
   };
 
   async function init() {
@@ -148,18 +149,19 @@
           });
         }
         const money = Number.isSafeInteger(saved.money) && saved.money >= 0 ? saved.money : 0;
-        return { ownedWeapons, weapon: ownedWeapons.has(saved.weapon) ? saved.weapon : 'pulse', money };
+        return { ownedWeapons, weapon: ownedWeapons.has(saved.weapon) ? saved.weapon : 'pulse', money, timeUnlocked: saved.timeUnlocked === true };
       } catch (error) {
         console.error('Gespeicherter Spielfortschritt konnte nicht geladen werden:', error);
-        return { ownedWeapons: new Set(['pulse']), weapon: 'pulse', money: 0 };
+        return { ownedWeapons: new Set(['pulse']), weapon: 'pulse', money: 0, timeUnlocked: false };
       }
     }
     const savedProgress = loadProgress();
     const player = {
       health: 100, score: 0, money: savedProgress.money, wave: 0, weapon: savedProgress.weapon,
-      ownedWeapons: savedProgress.ownedWeapons, yaw: 0, pitch: 0, verticalSpeed: 0
+      ownedWeapons: savedProgress.ownedWeapons, timeUnlocked: savedProgress.timeUnlocked,
+      yaw: 0, pitch: 0, verticalSpeed: 0
     };
-    const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, shooting: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
+    const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, shooting: false, timeStopped: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
     const clock = new THREE.Clock();
 
     function saveProgress() {
@@ -167,7 +169,8 @@
         localStorage.setItem(progressKey, JSON.stringify({
           ownedWeapons: Array.from(player.ownedWeapons),
           weapon: player.weapon,
-          money: player.money
+          money: player.money,
+          timeUnlocked: player.timeUnlocked
         }));
         return true;
       } catch (error) {
@@ -335,6 +338,8 @@
       state.shopOpen = false;
       state.mainMenu = false;
       state.shooting = false;
+      state.timeStopped = false;
+      ui.timeStatus.hidden = true;
       state.lastShot = 0;
       keys.clear();
       ui.shop.hidden = true;
@@ -430,6 +435,7 @@
         gun.position.z += (-0.65 - gun.position.z) * Math.min(1, dt * 12);
 
         for (const enemy of enemies) {
+          if (state.timeStopped) break;
           const dx = camera.position.x - enemy.group.position.x;
           const dz = camera.position.z - enemy.group.position.z;
           const distance = Math.hypot(dx, dz) || 1;
@@ -451,6 +457,7 @@
         }
 
         for (let i = bullets.length - 1; i >= 0; i--) {
+          if (state.timeStopped) break;
           const bullet = bullets[i];
           bullet.mesh.position.addScaledVector(bullet.velocity, dt);
           bullet.life -= dt;
@@ -504,11 +511,28 @@
     ui.menuButton.addEventListener('click', showMainMenu);
     ui.secretButton.addEventListener('click', () => {
       ui.pinDisplay.value = '';
+      ui.pinStatus.textContent = '';
       ui.pinBoard.showModal();
     });
+    function submitPin() {
+      if (ui.pinDisplay.value === '2402') {
+        player.timeUnlocked = true;
+        const saved = saveProgress();
+        ui.pinStatus.textContent = saved
+          ? 'Zeitstopp freigeschaltet! Drücke im Spiel Alt Gr.'
+          : 'Zeitstopp freigeschaltet, aber nicht gespeichert. Drücke im Spiel Alt Gr.';
+      } else {
+        ui.pinStatus.textContent = 'Falscher PIN. Bitte versuche es erneut.';
+      }
+      ui.pinDisplay.value = '';
+    }
     $('pin-keys').addEventListener('click', event => {
       const digit = event.target.dataset.digit;
-      if (digit !== undefined) ui.pinDisplay.value += digit;
+      if (digit !== undefined && ui.pinDisplay.value.length < 4) {
+        ui.pinDisplay.value += digit;
+        ui.pinStatus.textContent = '';
+        if (ui.pinDisplay.value.length === 4) submitPin();
+      }
     });
     $('pin-clear').addEventListener('click', () => { ui.pinDisplay.value = ''; });
     $('pin-backspace').addEventListener('click', () => {
@@ -586,6 +610,15 @@
     });
     document.addEventListener('keydown', event => {
       if (!state.locked) return;
+      if (event.code === 'AltRight' || event.key === 'AltGraph') {
+        event.preventDefault();
+        if (player.timeUnlocked && !event.repeat) {
+          state.timeStopped = !state.timeStopped;
+          ui.timeStatus.hidden = !state.timeStopped;
+          showMessage(state.timeStopped ? 'ZEIT ANGEHALTEN' : 'ZEIT LÄUFT');
+        }
+        return;
+      }
       if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ShiftLeft', 'ShiftRight', 'Space'].includes(event.code)) {
         event.preventDefault();
         if (event.code === 'Space' && !event.repeat && camera.position.y === groundHeight) {

@@ -39,6 +39,7 @@ button { font: inherit; }
 .weapon-panel { margin-left: auto; text-align: right; }.weapon-panel strong { display: block; font: 800 32px/.95 "Barlow Condensed", sans-serif; letter-spacing: 2px; margin: 8px 0 5px; }.weapon-panel em { color: #72f6d4; font-style: normal; }.weapon-panel small { color: #a4b2c2; font-size: 9px; letter-spacing: 1px; }
 .controls-hint { position: absolute; bottom: 19px; left: 34px; right: 18px; color: #a3b2c0; font-size: 9px; font-weight: 700; letter-spacing: 1px; }.controls-hint span { color: #67e9c9; margin: 0 8px; }
 .wave-message { position: absolute; top: 22%; width: 100%; text-align: center; color: #f0fff9; text-shadow: 0 2px 15px #000; font: 800 34px "Barlow Condensed", sans-serif; letter-spacing: 4px; opacity: 0; transition: opacity .3s; }
+.time-status { position: absolute; top: 90px; left: 34px; color: #78f3d4; text-shadow: 0 2px 5px #000; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
 .overlay { position: absolute; inset: 0; display: flex; align-items: center; padding: 6vw; overflow-y: auto; background: linear-gradient(90deg, rgba(6, 11, 22, .97) 0%, rgba(6, 11, 22, .91) 37%, rgba(6, 11, 22, .25) 100%); }
 .overlay[hidden] { display: none; }
 .overlay-card { width: min(500px, 100%); }
@@ -68,5 +69,6 @@ kbd { display: inline-block; padding: 5px 6px; border: 1px solid #536270; border
 .pin-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .pin-keys button, .pin-close { padding: 12px; border: 1px solid #415361; background: #192a34; color: #eefcf8; cursor: pointer; }
 .pin-keys button:hover, .pin-close:hover { border-color: #78f3d4; color: #78f3d4; }
+.pin-status { min-height: 16px; margin: 10px 0 0; color: #78f3d4; font-size: 11px; }
 .pin-close { width: 100%; margin-top: 12px; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
 @media (max-width: 700px) { .topbar { top: 20px; left: 18px; right: 18px; gap: 18px; }.brand { font-size: 15px; }.brand-mark { width: 30px; height: 30px; font-size: 22px; }.bottom-bar { left: 18px; right: 18px; bottom: 40px; gap: 16px; }.health-panel { width: 110px; }.weapon-panel strong { font-size: 24px; }.controls-hint { left: 18px; font-size: 8px; }.controls-hint span { margin: 0 2px; }.overlay { padding: 24px; background: rgba(6, 11, 22, .87); }.overlay-caption { display: none; }.card-footer { gap: 12px; }.money-info { display: none; } }
