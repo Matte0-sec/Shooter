@@ -9,7 +9,8 @@
     score: $('score'), money: $('money'), enemies: $('enemies'), message: $('wave-message'),
     flash: $('damage-flash'), hit: $('hit-marker'), shop: $('shop'),
     shopMoney: $('shop-money'), shopStatus: $('shop-status'),
-    weaponName: $('weapon-name'), weaponDetail: $('weapon-detail')
+    weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
+    menuButton: $('menu-button')
   };
 
   async function init() {
@@ -132,12 +133,48 @@
     const groundHeight = 1.65;
     const weapons = {
       pulse: { name: 'IMPULS', number: '01', damage: 1, cooldown: 170, cost: 0, detail: 'UNBEGRENZTE MUNITION' },
-      scatter: { name: 'SCATTER', number: '02', damage: 3, cooldown: 520, cost: 250, detail: 'SCHROT · 3 SCHADEN' },
-      rapid: { name: 'RAPID', number: '03', damage: 1, cooldown: 75, cost: 400, detail: 'SCHNELLFEUER · 1 SCHADEN' }
+      scatter: { name: 'SCATTER', number: '02', damage: 3, cooldown: 520, cost: 750, detail: 'SCHROT · 3 SCHADEN' },
+      rapid: { name: 'RAPID', number: '03', damage: 1, cooldown: 75, cost: 1200, detail: 'SCHNELLFEUER · 1 SCHADEN' }
     };
-    const player = { health: 100, score: 0, money: 0, wave: 0, weapon: 'pulse', yaw: 0, pitch: 0, verticalSpeed: 0 };
-    const state = { started: false, dead: false, locked: false, shopOpen: false, shooting: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
+    const progressKey = 'neon-district-weapons';
+    function loadProgress() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(progressKey) || '{}');
+        const ownedWeapons = new Set(['pulse']);
+        if (Array.isArray(saved.ownedWeapons)) {
+          saved.ownedWeapons.forEach(id => {
+            if (Object.prototype.hasOwnProperty.call(weapons, id)) ownedWeapons.add(id);
+          });
+        }
+        const money = Number.isSafeInteger(saved.money) && saved.money >= 0 ? saved.money : 0;
+        return { ownedWeapons, weapon: ownedWeapons.has(saved.weapon) ? saved.weapon : 'pulse', money };
+      } catch (error) {
+        console.error('Gespeicherter Spielfortschritt konnte nicht geladen werden:', error);
+        return { ownedWeapons: new Set(['pulse']), weapon: 'pulse', money: 0 };
+      }
+    }
+    const savedProgress = loadProgress();
+    const player = {
+      health: 100, score: 0, money: savedProgress.money, wave: 0, weapon: savedProgress.weapon,
+      ownedWeapons: savedProgress.ownedWeapons, yaw: 0, pitch: 0, verticalSpeed: 0
+    };
+    const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, shooting: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
     const clock = new THREE.Clock();
+
+    function saveProgress() {
+      try {
+        localStorage.setItem(progressKey, JSON.stringify({
+          ownedWeapons: Array.from(player.ownedWeapons),
+          weapon: player.weapon,
+          money: player.money
+        }));
+        return true;
+      } catch (error) {
+        console.error('Spielfortschritt konnte nicht gespeichert werden:', error);
+        ui.status.textContent = 'Dein Guthaben und Waffen-Fortschritt konnten nicht gespeichert werden.';
+        return false;
+      }
+    }
 
     function part(group, x, y, z, w, h, d, mat) {
       const mesh = new THREE.Mesh(enemyGeometry, mat);
@@ -187,8 +224,11 @@
       ui.weaponDetail.textContent = weapon.detail;
       document.querySelectorAll('.weapon-card').forEach(card => {
         const item = weapons[card.dataset.weapon];
-        card.disabled = player.money < item.cost || player.weapon === card.dataset.weapon;
+        const owned = player.ownedWeapons.has(card.dataset.weapon);
+        card.disabled = (!owned && player.money < item.cost) || player.weapon === card.dataset.weapon;
+        card.classList.toggle('owned', owned);
         card.classList.toggle('equipped', player.weapon === card.dataset.weapon);
+        card.querySelector('b').textContent = owned ? 'BESITZT' : `$${item.cost}`;
       });
     }
 
@@ -211,7 +251,9 @@
     function openShop() {
       const reward = 250 + (player.wave - 1) * 100;
       player.money += reward;
+      saveProgress();
       state.shopOpen = true;
+      state.mainMenu = false;
       state.waveDelay = 0;
       state.shooting = false;
       ui.shopStatus.textContent = `+ $${reward} Wellenbelohnung`;
@@ -219,6 +261,7 @@
       ui.description.textContent = `Welle ${player.wave} geschafft! Kaufe eine bessere Waffe und starte danach die nächste Welle.`;
       ui.controls.hidden = true;
       ui.shop.hidden = false;
+      ui.menuButton.hidden = false;
       ui.button.innerHTML = 'NÄCHSTE WELLE <span>↗</span>';
       ui.status.textContent = '';
       ui.overlay.hidden = false;
@@ -228,10 +271,31 @@
 
     function continueFromShop() {
       state.shopOpen = false;
+      state.mainMenu = false;
       ui.shop.hidden = true;
+      ui.menuButton.hidden = true;
       ui.overlay.hidden = true;
       startWave();
       requestPointerLock();
+    }
+
+    function showMainMenu() {
+      state.shopOpen = false;
+      state.mainMenu = true;
+      state.shooting = false;
+      ui.title.innerHTML = 'NEON<br><span>DISTRICT</span>';
+      ui.description.textContent = 'Kaufe und rüste deine Waffen aus. Dein Guthaben und deine Freischaltungen bleiben dauerhaft erhalten.';
+      ui.controls.hidden = true;
+      ui.shop.hidden = false;
+      ui.menuButton.hidden = true;
+      const startLabel = state.dead ? 'NEUES SPIEL STARTEN' : player.wave ? 'NÄCHSTE WELLE' : 'SPIEL STARTEN';
+      ui.button.innerHTML = `${startLabel} <span>↗</span>`;
+      ui.shopStatus.textContent = 'Wähle eine Waffe oder starte die nächste Welle.';
+      ui.status.textContent = '';
+      ui.overlay.hidden = false;
+      ui.hud.hidden = true;
+      updateHud();
+      if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
     }
 
     function requestPointerLock() {
@@ -258,9 +322,7 @@
       clearActors();
       player.health = 100;
       player.score = 0;
-      player.money = 0;
       player.wave = 0;
-      player.weapon = 'pulse';
       player.yaw = 0;
       player.pitch = 0;
       player.verticalSpeed = 0;
@@ -269,10 +331,12 @@
       state.dead = false;
       state.started = true;
       state.shopOpen = false;
+      state.mainMenu = false;
       state.shooting = false;
       state.lastShot = 0;
       keys.clear();
       ui.shop.hidden = true;
+      ui.menuButton.hidden = true;
       startWave();
     }
 
@@ -281,6 +345,7 @@
       ui.description.textContent = description;
       ui.controls.hidden = true;
       ui.shop.hidden = true;
+      ui.menuButton.hidden = true;
       ui.button.innerHTML = `${button} <span>↗</span>`;
       ui.status.textContent = '';
       ui.overlay.hidden = false;
@@ -290,6 +355,7 @@
       state.dead = true;
       state.shooting = false;
       showOverlay('GAME<br><span>OVER</span>', `Du hast Welle ${player.wave} erreicht und ${player.score} Punkte gesammelt. Schaffst du beim nächsten Versuch mehr?`, 'NOCHMAL SPIELEN');
+      ui.menuButton.hidden = false;
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
     }
 
@@ -416,20 +482,41 @@
         continueFromShop();
         return;
       }
-      if (!state.started || state.dead) resetGame();
+      if (state.mainMenu) {
+        if (state.started && !state.dead) {
+          state.mainMenu = false;
+          ui.shop.hidden = true;
+          ui.overlay.hidden = true;
+          startWave();
+        } else {
+          resetGame();
+        }
+      } else if (!state.started || state.dead) {
+        resetGame();
+      }
       ui.status.textContent = '';
       requestPointerLock();
     });
 
+    ui.menuButton.addEventListener('click', showMainMenu);
+
     document.querySelectorAll('.weapon-card').forEach(card => card.addEventListener('click', () => {
-      const weapon = weapons[card.dataset.weapon];
-      if (player.money < weapon.cost) {
+      const weaponId = card.dataset.weapon;
+      const weapon = weapons[weaponId];
+      const alreadyOwned = player.ownedWeapons.has(weaponId);
+      if (!alreadyOwned && player.money < weapon.cost) {
         ui.shopStatus.textContent = `Dir fehlen noch $${weapon.cost - player.money}.`;
         return;
       }
-      player.money -= weapon.cost;
-      player.weapon = card.dataset.weapon;
-      ui.shopStatus.textContent = `${weapon.name} ausgerüstet!`;
+      if (!alreadyOwned) {
+        player.money -= weapon.cost;
+        player.ownedWeapons.add(weaponId);
+      }
+      player.weapon = weaponId;
+      saveProgress();
+      ui.shopStatus.textContent = alreadyOwned
+        ? `${weapon.name} ausgerüstet!`
+        : `${weapon.name} dauerhaft freigeschaltet und ausgerüstet!`;
       updateHud();
     }));
 
@@ -477,7 +564,7 @@
     camera.position.set(0, 3.2, 6);
     camera.rotation.set(-0.06, Math.PI, 0);
     ui.button.disabled = false;
-    ui.button.innerHTML = 'SPIEL STARTEN <span>↗</span>';
+    showMainMenu();
     ui.status.textContent = 'Am besten am Computer mit Maus und Tastatur spielen.';
     renderer.setAnimationLoop(() => update(Math.min(clock.getDelta(), 0.05), performance.now()));
   }
