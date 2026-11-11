@@ -6,7 +6,7 @@
     title: $('overlay-title'), description: $('overlay-description'),
     controls: $('intro-controls'), button: $('start-button'), status: $('status'),
     health: $('health'), healthFill: $('health-fill'), wave: $('wave'),
-    score: $('score'), money: $('money'), enemies: $('enemies'), message: $('wave-message'),
+    score: $('score'), highscore: $('highscore'), money: $('money'), enemies: $('enemies'), message: $('wave-message'),
     flash: $('damage-flash'), hit: $('hit-marker'), shop: $('shop'),
     shopMoney: $('shop-money'), shopStatus: $('shop-status'),
     weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
@@ -157,15 +157,16 @@
           });
         }
         const money = Number.isSafeInteger(saved.money) && saved.money >= 0 ? saved.money : 0;
-        return { ownedWeapons, weapon: ownedWeapons.has(saved.weapon) ? saved.weapon : 'pulse', money, timeUnlocked: saved.timeUnlocked === true };
+        const highscore = Number.isSafeInteger(saved.highscore) && saved.highscore >= 0 ? saved.highscore : 0;
+        return { ownedWeapons, weapon: ownedWeapons.has(saved.weapon) ? saved.weapon : 'pulse', money, highscore, timeUnlocked: saved.timeUnlocked === true };
       } catch (error) {
         console.error('Gespeicherter Spielfortschritt konnte nicht geladen werden:', error);
-        return { ownedWeapons: new Set(['pulse']), weapon: 'pulse', money: 0, timeUnlocked: false };
+        return { ownedWeapons: new Set(['pulse']), weapon: 'pulse', money: 0, highscore: 0, timeUnlocked: false };
       }
     }
     const savedProgress = loadProgress();
     const player = {
-      health: 100, score: 0, money: savedProgress.money, wave: 0, weapon: savedProgress.weapon,
+      health: 100, score: 0, highscore: savedProgress.highscore, money: savedProgress.money, wave: 0, weapon: savedProgress.weapon,
       ownedWeapons: savedProgress.ownedWeapons, timeUnlocked: savedProgress.timeUnlocked,
       yaw: 0, pitch: 0, verticalSpeed: 0
     };
@@ -178,12 +179,13 @@
           ownedWeapons: Array.from(player.ownedWeapons),
           weapon: player.weapon,
           money: player.money,
+          highscore: player.highscore,
           timeUnlocked: player.timeUnlocked
         }));
         return true;
       } catch (error) {
         console.error('Spielfortschritt konnte nicht gespeichert werden:', error);
-        ui.status.textContent = 'Dein Guthaben und Waffen-Fortschritt konnten nicht gespeichert werden.';
+        ui.status.textContent = 'Dein Spielfortschritt konnte nicht gespeichert werden.';
         return false;
       }
     }
@@ -229,6 +231,7 @@
       ui.healthFill.style.background = player.health <= 30 ? '#ff746c' : '#6cf4d0';
       ui.wave.textContent = String(player.wave).padStart(2, '0');
       ui.score.textContent = String(player.score).padStart(5, '0');
+      ui.highscore.textContent = String(player.highscore).padStart(5, '0');
       ui.money.textContent = `$${String(player.money).padStart(3, '0')}`;
       ui.shopMoney.textContent = `$${String(player.money).padStart(3, '0')}`;
       ui.enemies.textContent = enemies.length;
@@ -415,6 +418,10 @@
           }
           if (player.weapon !== 'rail') break;
         }
+      }
+      if (player.score > player.highscore) {
+        player.highscore = player.score;
+        if (!saveProgress()) showMessage('HIGHSCORE KONNTE NICHT GESPEICHERT WERDEN', 4);
       }
       updateHud();
     }
