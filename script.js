@@ -136,7 +136,10 @@
     const weapons = {
       pulse: { name: 'IMPULS', number: '01', damage: 1, cooldown: 170, cost: 0, detail: 'UNBEGRENZTE MUNITION' },
       scatter: { name: 'SCATTER', number: '02', damage: 3, cooldown: 520, cost: 750, detail: 'SCHROT · 3 SCHADEN' },
-      rapid: { name: 'RAPID', number: '03', damage: 1, cooldown: 75, cost: 1200, detail: 'SCHNELLFEUER · 1 SCHADEN' }
+      rapid: { name: 'RAPID', number: '03', damage: 1, cooldown: 75, cost: 1200, detail: 'SCHNELLFEUER · 1 SCHADEN' },
+      carbine: { name: 'CARBINE', number: '04', damage: 2, cooldown: 140, cost: 1500, detail: 'STURMGEWEHR · 2 SCHADEN' },
+      twin: { name: 'TWIN', number: '05', damage: 2, cooldown: 420, cost: 2000, detail: 'DOPPELSCHUSS · 2 × 2 SCHADEN' },
+      rail: { name: 'RAIL', number: '06', damage: 3, cooldown: 800, cost: 2800, detail: 'DURCHSCHLAG · 3 SCHADEN' }
     };
     const progressKey = 'neon-district-weapons';
     function loadProgress() {
@@ -232,7 +235,7 @@
         card.disabled = (!owned && player.money < item.cost) || player.weapon === card.dataset.weapon;
         card.classList.toggle('owned', owned);
         card.classList.toggle('equipped', player.weapon === card.dataset.weapon);
-        card.querySelector('b').textContent = owned ? 'BESITZT' : `$${item.cost}`;
+        card.querySelector('b').textContent = player.weapon === card.dataset.weapon ? 'AUSGERÜSTET' : owned ? 'BESITZT' : `$${item.cost}`;
       });
     }
 
@@ -371,25 +374,31 @@
       if (now - state.lastShot < weapon.cooldown) return;
       state.lastShot = now;
       gun.position.z = -0.55;
-      const angles = player.weapon === 'scatter' ? [-0.08, -0.04, 0, 0.04, 0.08] : [0];
+      const angles = player.weapon === 'scatter'
+        ? [-0.08, -0.04, 0, 0.04, 0.08]
+        : player.weapon === 'twin' ? [-0.015, 0.015] : [0];
       for (const angle of angles) {
         raycaster.setFromCamera(center, camera);
         raycaster.ray.direction.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle).normalize();
-        const targets = enemies.map(enemy => enemy.group);
-        const hits = raycaster.intersectObjects([...coverMeshes, ...targets], true);
-        if (!hits.length) continue;
-        let object = hits[0].object;
-        while (object && !enemies.some(enemy => enemy.group === object)) object = object.parent;
-        const index = enemies.findIndex(enemy => enemy.group === object);
-        if (index < 0) continue;
-        const enemy = enemies[index];
-        enemy.health -= weapon.damage;
-        ui.hit.style.opacity = '1';
-        state.hitUntil = now + 130;
-        if (enemy.health <= 0) {
-          scene.remove(enemy.group);
-          enemies.splice(index, 1);
-          player.score += 100;
+        const targets = new Map(enemies.map(enemy => [enemy.group, enemy]));
+        const hits = raycaster.intersectObjects([...coverMeshes, ...targets.keys()], true);
+        const hitEnemies = new Set();
+        for (const hit of hits) {
+          let object = hit.object;
+          while (object && !targets.has(object)) object = object.parent;
+          if (!object) break;
+          const enemy = targets.get(object);
+          if (hitEnemies.has(enemy)) continue;
+          hitEnemies.add(enemy);
+          enemy.health -= weapon.damage;
+          ui.hit.style.opacity = '1';
+          state.hitUntil = now + 130;
+          if (enemy.health <= 0) {
+            scene.remove(enemy.group);
+            enemies.splice(enemies.indexOf(enemy), 1);
+            player.score += 100;
+          }
+          if (player.weapon !== 'rail') break;
         }
       }
       updateHud();
