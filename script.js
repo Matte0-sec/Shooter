@@ -10,7 +10,7 @@
     flash: $('damage-flash'), hit: $('hit-marker'), shop: $('shop'),
     shopMoney: $('shop-money'), shopStatus: $('shop-status'),
     weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
-    menuButton: $('menu-button')
+    menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button')
   };
 
   async function init() {
@@ -499,6 +499,28 @@
     });
 
     ui.menuButton.addEventListener('click', showMainMenu);
+
+    function updateFullscreenButton() {
+      const isFullscreen = document.fullscreenElement === ui.container.parentElement;
+      ui.fullscreenButton.textContent = isFullscreen ? 'Vollbild verlassen' : 'Vollbild';
+      ui.fullscreenButton.setAttribute('aria-label', isFullscreen ? 'Vollbild verlassen' : 'Vollbild aktivieren');
+      ui.fullscreenButton.setAttribute('aria-pressed', String(isFullscreen));
+    }
+
+    ui.fullscreenButton.addEventListener('click', async () => {
+      try {
+        if (document.fullscreenElement === ui.container.parentElement) {
+          await document.exitFullscreen();
+        } else {
+          await ui.container.parentElement.requestFullscreen();
+        }
+        updateFullscreenButton();
+      } catch (error) {
+        console.error('Vollbildmodus konnte nicht geändert werden:', error);
+        ui.status.textContent = 'Der Vollbildmodus konnte nicht aktiviert werden.';
+      }
+    });
+    document.addEventListener('fullscreenchange', updateFullscreenButton);
 
     document.querySelectorAll('.weapon-card').forEach(card => card.addEventListener('click', () => {
       const weaponId = card.dataset.weapon;

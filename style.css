@@ -56,4 +56,6 @@ kbd { display: inline-block; padding: 5px 6px; border: 1px solid #536270; border
 .status { min-height: 20px; color: #ffbaaa; font-size: 12px; line-height: 1.5; }
 .card-footer { display: flex; gap: 25px; padding-top: 24px; border-top: 1px solid #33414d; color: #718591; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; }
 .overlay-caption { position: absolute; right: 35px; bottom: 30px; color: #c1e0db; font-size: 9px; font-weight: 700; letter-spacing: 2px; }
+.fullscreen-button { position: absolute; z-index: 5; top: 82px; right: 30px; padding: 9px 13px; border: 1px solid #536270; background: rgba(9, 13, 24, .82); color: #eefcf8; font-size: 10px; font-weight: 700; letter-spacing: 1px; cursor: pointer; }
+.fullscreen-button:hover { border-color: #78f3d4; color: #78f3d4; }
 @media (max-width: 700px) { .topbar { top: 20px; left: 18px; right: 18px; gap: 18px; }.brand { font-size: 15px; }.brand-mark { width: 30px; height: 30px; font-size: 22px; }.bottom-bar { left: 18px; right: 18px; bottom: 40px; gap: 16px; }.health-panel { width: 110px; }.weapon-panel strong { font-size: 24px; }.controls-hint { left: 18px; font-size: 8px; }.controls-hint span { margin: 0 2px; }.overlay { padding: 24px; background: rgba(6, 11, 22, .87); }.overlay-caption { display: none; }.card-footer { gap: 12px; }.money-info { display: none; } }
