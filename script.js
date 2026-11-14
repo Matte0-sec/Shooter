@@ -175,6 +175,18 @@
     const seekerBulletMat = new THREE.MeshBasicMaterial({ color: 0x78f3d4 });
     const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
     const bulletGeometry = new THREE.SphereGeometry(0.13, 8, 6);
+    const npcWeapons = [
+      { name: 'IMPULS', damage: 8, cooldown: 2.1, projectileSpeed: 12, range: 36, color: 0xff765b, bodyWidth: 0.18, barrelLength: 0.5 },
+      { name: 'RAPID', damage: 4, cooldown: 0.95, projectileSpeed: 13, range: 30, color: 0xffd05b, bodyWidth: 0.16, barrelLength: 0.38 },
+      { name: 'SCATTER', damage: 3, cooldown: 2.5, projectileSpeed: 10, range: 24, pellets: 3, spread: 0.07, color: 0x73c7ff, bodyWidth: 0.24, barrelLength: 0.34 },
+      { name: 'SCHWER', damage: 10, cooldown: 3, projectileSpeed: 10, range: 40, color: 0xc47aff, bodyWidth: 0.28, barrelLength: 0.56 },
+      { name: 'PRÄZISION', damage: 12, cooldown: 3.4, projectileSpeed: 22, range: 50, color: 0x76f2d1, bodyWidth: 0.15, barrelLength: 0.72 }
+    ].map(weapon => ({
+      ...weapon,
+      bodyMaterial: material(weapon.color, { metalness: 0.3 }),
+      barrelMaterial: material(0x263741, { metalness: 0.5 }),
+      bulletMaterial: new THREE.MeshBasicMaterial({ color: weapon.color })
+    }));
     const enemies = [];
     const bullets = [];
     const seekerBullets = [];
@@ -242,6 +254,20 @@
       group.add(mesh);
     }
 
+    function addNpcWeapon(group, weapon) {
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(weapon.bodyWidth, 0.15, 0.42),
+        weapon.bodyMaterial
+      );
+      body.position.set(0.4, 1.15, 0.42);
+      const barrel = new THREE.Mesh(
+        new THREE.BoxGeometry(0.07, 0.07, weapon.barrelLength),
+        weapon.barrelMaterial
+      );
+      barrel.position.set(0.4, 1.15, 0.42 + weapon.barrelLength / 2);
+      group.add(body, barrel);
+    }
+
     function isBlocked(x, z, radius = 0.45) {
       return obstacles.some(o => x + radius > o.minX && x - radius < o.maxX && z + radius > o.minZ && z - radius < o.maxZ);
     }
@@ -252,7 +278,7 @@
     }
 
     const spawnPoints = [[0, -32], [0, 32], [-32, 0], [32, 0], [-4, -20], [4, 20], [-20, 4], [20, -4]];
-    function spawnEnemy(index, type = enemyTypes.normal, position = null) {
+    function spawnEnemy(index, type = enemyTypes.normal, position = null, weapon = null, health = type.health) {
       const group = new THREE.Group();
       part(group, 0, 1.05, 0, 0.85, 1, 0.48, type.body);
       part(group, 0, 1.82, 0, 0.6, 0.55, 0.55, enemyDarkMat);
@@ -261,13 +287,14 @@
       part(group, 0.28, 0.35, 0, 0.3, 0.7, 0.38, enemyDarkMat);
       part(group, -0.58, 1.1, 0, 0.25, 0.75, 0.3, enemyDarkMat);
       part(group, 0.58, 1.1, 0, 0.25, 0.75, 0.3, enemyDarkMat);
+      if (weapon) addNpcWeapon(group, weapon);
       const available = spawnPoints.filter(([x, z]) => Math.hypot(x - camera.position.x, z - camera.position.z) > 12);
       const points = available.length ? available : spawnPoints;
       const point = position || points[index % points.length];
       group.position.set(point[0], 0, point[1]);
       group.scale.setScalar(type.scale);
       scene.add(group);
-      enemies.push({ group, type, health: type.health, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1, target: null, targetTimer: 0 });
+      enemies.push({ group, type, health, weapon, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1, target: null, targetTimer: 0 });
     }
 
     function updateHud() {
@@ -327,7 +354,13 @@
 
     function createProtocolSpawns(count) {
       const positions = [];
-      for (let cell = 0; cell < 100 && positions.length < count; cell++) {
+      const cells = Array.from({ length: 100 }, (_, index) => index);
+      for (let index = cells.length - 1; index > 0; index--) {
+        const swapIndex = Math.floor(Math.random() * (index + 1));
+        [cells[index], cells[swapIndex]] = [cells[swapIndex], cells[index]];
+      }
+      for (const cell of cells) {
+        if (positions.length >= count) break;
         const column = cell % 10;
         const row = Math.floor(cell / 10);
         const centerX = -100 + column * 20;
@@ -335,17 +368,17 @@
         for (let attempt = 0; attempt < 80; attempt++) {
           const x = centerX + (Math.random() - 0.5) * 18;
           const z = centerZ + (Math.random() - 0.5) * 18;
-          if (Math.hypot(x, z) < 15 || isBlocked(x, z, 0.7)) continue;
-          if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 4)) continue;
+          if (Math.hypot(x, z) < 22 || isBlocked(x, z, 0.7)) continue;
+          if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 22)) continue;
           positions.push([x, z]);
           break;
         }
       }
-      for (let attempt = 0; attempt < 20000 && positions.length < count; attempt++) {
+      for (let attempt = 0; attempt < 40000 && positions.length < count; attempt++) {
         const x = (Math.random() - 0.5) * 208;
         const z = (Math.random() - 0.5) * 208;
-        if (Math.hypot(x, z) < 15 || isBlocked(x, z, 0.7)) continue;
-        if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 3)) continue;
+        if (Math.hypot(x, z) < 22 || isBlocked(x, z, 0.7)) continue;
+        if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 22)) continue;
         positions.push([x, z]);
       }
       if (positions.length !== count) {
@@ -357,7 +390,10 @@
     function startLastProtocol() {
       player.wave = 0;
       const positions = createProtocolSpawns(50);
-      positions.forEach((position, index) => spawnEnemy(index, enemyTypes.normal, position));
+      positions.forEach((position, index) => {
+        const health = 28 + Math.floor(Math.random() * 7);
+        spawnEnemy(index, enemyTypes.normal, position, npcWeapons[index % npcWeapons.length], health);
+      });
       showMessage('LAST PROTOKOL · 50 NPCs');
       updateHud();
     }
@@ -644,10 +680,26 @@
       target.x += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
       target.z += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
       const direction = target.sub(origin).normalize();
-      const mesh = new THREE.Mesh(bulletGeometry, bulletMat);
-      mesh.position.copy(origin);
-      scene.add(mesh);
-      bullets.push({ mesh, velocity: direction.multiplyScalar(12), life: 4, damage: enemy.type.damage, owner: enemy });
+      const weapon = enemy.weapon;
+      const shots = weapon ? weapon.pellets || 1 : 1;
+      for (let i = 0; i < shots; i++) {
+        const shotDirection = direction.clone();
+        if (weapon && weapon.spread) {
+          shotDirection.x += (Math.random() - 0.5) * weapon.spread;
+          shotDirection.y += (Math.random() - 0.5) * weapon.spread * 0.5;
+          shotDirection.normalize();
+        }
+        const mesh = new THREE.Mesh(bulletGeometry, weapon ? weapon.bulletMaterial : bulletMat);
+        mesh.position.copy(origin);
+        scene.add(mesh);
+        bullets.push({
+          mesh,
+          velocity: shotDirection.multiplyScalar(weapon ? weapon.projectileSpeed : 12),
+          life: 4,
+          damage: weapon ? weapon.damage : enemy.type.damage,
+          owner: enemy
+        });
+      }
     }
 
     function hasLineOfSight(enemy, targetPosition = camera.position) {
@@ -706,10 +758,10 @@
             }
           }
           enemy.cooldown -= dt;
-          const firingRange = state.mode === 'last-protocol' ? 34 : 30;
+          const firingRange = enemy.weapon ? enemy.weapon.range : state.mode === 'last-protocol' ? 34 : 30;
           if (enemy.cooldown <= 0 && distance < firingRange && hasLineOfSight(enemy, targetPosition)) {
             enemyShoot(enemy, targetEnemy);
-            enemy.cooldown = Math.max(0.8, 2.4 - player.wave * 0.05) + Math.random();
+            enemy.cooldown = enemy.weapon ? enemy.weapon.cooldown : Math.max(0.8, 2.4 - player.wave * 0.05) + Math.random();
           }
         }
 
