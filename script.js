@@ -14,7 +14,7 @@
     weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
     menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button'),
     secretButton: $('secret-button'), pinBoard: $('pin-board'), pinDisplay: $('pin-display'),
-    pinStatus: $('pin-status'), timeStatus: $('time-status')
+    pinStatus: $('pin-status'), timeStatus: $('time-status'), codeHint: $('code-hint')
   };
 
   async function init() {
@@ -316,6 +316,7 @@
       const weapon = weapons[player.weapon];
       ui.weaponName.innerHTML = `${weapon.name} <em>${weapon.number}</em>`;
       ui.weaponDetail.textContent = weapon.detail;
+      ui.codeHint.hidden = !player.timeUnlocked && !player.ownedWeapons.has('seeker');
       document.querySelectorAll('.weapon-card').forEach(card => {
         const item = weapons[card.dataset.weapon];
         const owned = player.ownedWeapons.has(card.dataset.weapon);
@@ -887,6 +888,22 @@
       }
       ui.pinDisplay.value = '';
     }
+
+    function deactivateSecretCodes() {
+      if (!player.timeUnlocked && !player.ownedWeapons.has('seeker')) return;
+      player.timeUnlocked = false;
+      player.ownedWeapons.delete('seeker');
+      if (player.weapon === 'seeker') player.weapon = 'pulse';
+      state.timeStopped = false;
+      ui.timeStatus.hidden = true;
+      clearSeekerBullets();
+      const saved = saveProgress();
+      updateHud();
+      showMessage(saved
+        ? 'GEHEIMCODES DEAKTIVIERT · PIN ERNEUT EINGEBEN'
+        : 'GEHEIMCODES DEAKTIVIERT · SPEICHERN FEHLGESCHLAGEN', 4);
+    }
+
     $('pin-keys').addEventListener('click', event => {
       const digit = event.target.dataset.digit;
       if (digit !== undefined && ui.pinDisplay.value.length < 4) {
@@ -975,6 +992,11 @@
     });
     document.addEventListener('keydown', event => {
       if (!state.locked) return;
+      if (event.code === 'Delete') {
+        event.preventDefault();
+        if (!event.repeat) deactivateSecretCodes();
+        return;
+      }
       if (event.code === 'AltRight' || event.key === 'AltGraph') {
         event.preventDefault();
         if (player.timeUnlocked && !event.repeat) {
