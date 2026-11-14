@@ -5,7 +5,9 @@
     container: $('canvas-container'), hud: $('hud'), overlay: $('overlay'),
     title: $('overlay-title'), description: $('overlay-description'),
     controls: $('intro-controls'), button: $('start-button'), status: $('status'),
+    modeSelection: $('mode-selection'),
     health: $('health'), healthFill: $('health-fill'), wave: $('wave'),
+    waveLabel: document.querySelector('.wave-info span'),
     score: $('score'), highscore: $('highscore'), money: $('money'), enemies: $('enemies'), message: $('wave-message'),
     flash: $('damage-flash'), hit: $('hit-marker'), shop: $('shop'),
     shopMoney: $('shop-money'), shopStatus: $('shop-status'),
@@ -61,11 +63,13 @@
     const neonMat = material(0x5ff5d0, { emissive: 0x31a789, emissiveIntensity: 1 });
     const obstacles = [];
     const coverMeshes = [];
+    const arenaMeshes = [];
 
     function box(x, y, z, width, height, depth, mat, solid = false) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
       mesh.position.set(x, y, z);
       scene.add(mesh);
+      arenaMeshes.push(mesh);
       if (solid) {
         obstacles.push({ minX: x - width / 2, maxX: x + width / 2, minZ: z - depth / 2, maxZ: z + depth / 2 });
         coverMeshes.push(mesh);
@@ -73,41 +77,79 @@
       return mesh;
     }
 
-    box(0, -0.5, 0, 76, 1, 76, groundMat);
-    box(0, 0.01, 0, 14, 0.02, 76, roadMat);
-    box(0, 0.02, 0, 76, 0.02, 14, roadMat);
-    for (let i = -32; i <= 32; i += 8) {
-      if (Math.abs(i) > 8) {
-        box(0, 0.04, i, 0.18, 0.02, 3, lineMat);
-        box(i, 0.04, 0, 3, 0.02, 0.18, lineMat);
-      }
-    }
+    function buildArena(mode) {
+      arenaMeshes.forEach(mesh => {
+        scene.remove(mesh);
+        mesh.geometry.dispose();
+      });
+      arenaMeshes.length = 0;
+      obstacles.length = 0;
+      coverMeshes.length = 0;
 
-    const cityBlocks = [
-      [-27, -27, 12, 12, 17], [-13, -27, 9, 12, 11], [14, -27, 10, 12, 19], [28, -27, 10, 12, 13],
-      [-27, -13, 12, 9, 10], [-13, -13, 9, 9, 15], [14, -13, 10, 9, 12], [28, -13, 10, 9, 18],
-      [-27, 14, 12, 10, 16], [-13, 14, 9, 10, 11], [14, 14, 10, 10, 17], [28, 14, 10, 10, 12],
-      [-27, 28, 12, 10, 12], [-13, 28, 9, 10, 18], [14, 28, 10, 10, 13], [28, 28, 10, 10, 16]
-    ];
-    cityBlocks.forEach(([x, z, w, d, h], index) => {
-      box(x, h / 2, z, w, h, d, buildings[index % buildings.length], true);
-      box(x, h + 0.15, z, w + 0.3, 0.3, d + 0.3, trimMat);
-      for (let y = 2.5; y < h - 1; y += 3) {
-        for (let offset = -w / 2 + 1.5; offset < w / 2 - 0.5; offset += 2.5) {
-          box(x + offset, y, z + d / 2 + 0.02, 1.1, 1.3, 0.04, windowMat);
-          box(x + offset, y, z - d / 2 - 0.02, 1.1, 1.3, 0.04, windowMat);
+      if (mode === 'waves') {
+        box(0, -0.5, 0, 76, 1, 76, groundMat);
+        box(0, 0.01, 0, 14, 0.02, 76, roadMat);
+        box(0, 0.02, 0, 76, 0.02, 14, roadMat);
+        for (let i = -32; i <= 32; i += 8) {
+          if (Math.abs(i) > 8) {
+            box(0, 0.04, i, 0.18, 0.02, 3, lineMat);
+            box(i, 0.04, 0, 3, 0.02, 0.18, lineMat);
+          }
+        }
+
+        const cityBlocks = [
+          [-27, -27, 12, 12, 17], [-13, -27, 9, 12, 11], [14, -27, 10, 12, 19], [28, -27, 10, 12, 13],
+          [-27, -13, 12, 9, 10], [-13, -13, 9, 9, 15], [14, -13, 10, 9, 12], [28, -13, 10, 9, 18],
+          [-27, 14, 12, 10, 16], [-13, 14, 9, 10, 11], [14, 14, 10, 10, 17], [28, 14, 10, 10, 12],
+          [-27, 28, 12, 10, 12], [-13, 28, 9, 10, 18], [14, 28, 10, 10, 13], [28, 28, 10, 10, 16]
+        ];
+        cityBlocks.forEach(([x, z, w, d, h], index) => {
+          box(x, h / 2, z, w, h, d, buildings[index % buildings.length], true);
+          box(x, h + 0.15, z, w + 0.3, 0.3, d + 0.3, trimMat);
+          for (let y = 2.5; y < h - 1; y += 3) {
+            for (let offset = -w / 2 + 1.5; offset < w / 2 - 0.5; offset += 2.5) {
+              box(x + offset, y, z + d / 2 + 0.02, 1.1, 1.3, 0.04, windowMat);
+              box(x + offset, y, z - d / 2 - 0.02, 1.1, 1.3, 0.04, windowMat);
+            }
+          }
+        });
+        [[-4, -15], [4, -23], [-4, 17], [4, 26], [-19, -4], [-27, 4], [19, 4], [27, -4], [-3, 5], [4, -5]].forEach(([x, z], i) => {
+          box(x, 0.75, z, 2.4, 1.5, 2.4, crateMat, true);
+          box(x, 1.52, z, 2.45, 0.08, 2.45, i % 2 ? trimMat : neonMat);
+        });
+        box(0, 1, -37, 76, 2, 1, trimMat, true);
+        box(0, 1, 37, 76, 2, 1, trimMat, true);
+        box(-37, 1, 0, 1, 2, 76, trimMat, true);
+        box(37, 1, 0, 1, 2, 76, trimMat, true);
+        scene.fog.far = 100;
+        return;
+      }
+
+      const halfSize = 112;
+      box(0, -0.5, 0, halfSize * 2, 1, halfSize * 2, groundMat);
+      for (let coordinate = -96; coordinate <= 96; coordinate += 24) {
+        box(coordinate, 0.01, 0, 8, 0.02, halfSize * 2, roadMat);
+        box(0, 0.02, coordinate, halfSize * 2, 0.02, 8, roadMat);
+      }
+      let index = 0;
+      for (let x = -84; x <= 84; x += 24) {
+        for (let z = -84; z <= 84; z += 24) {
+          const width = 13 + (index % 3);
+          const depth = 13 + (index % 4);
+          const height = 10 + (index * 7 % 13);
+          box(x, height / 2, z, width, height, depth, buildings[index % buildings.length], true);
+          box(x, height + 0.15, z, width + 0.3, 0.3, depth + 0.3, trimMat);
+          index++;
         }
       }
-    });
-    [[-4, -15], [4, -23], [-4, 17], [4, 26], [-19, -4], [-27, 4], [19, 4], [27, -4], [-3, 5], [4, -5]].forEach(([x, z], i) => {
-      box(x, 0.75, z, 2.4, 1.5, 2.4, crateMat, true);
-      box(x, 1.52, z, 2.45, 0.08, 2.45, i % 2 ? trimMat : neonMat);
-    });
-    // Low walls enclose the playable area without blocking the skyline.
-    box(0, 1, -37, 76, 2, 1, trimMat, true);
-    box(0, 1, 37, 76, 2, 1, trimMat, true);
-    box(-37, 1, 0, 1, 2, 76, trimMat, true);
-    box(37, 1, 0, 1, 2, 76, trimMat, true);
+      box(0, 1, -112, halfSize * 2, 2, 1, trimMat, true);
+      box(0, 1, 112, halfSize * 2, 2, 1, trimMat, true);
+      box(-112, 1, 0, 1, 2, halfSize * 2, trimMat, true);
+      box(112, 1, 0, 1, 2, halfSize * 2, trimMat, true);
+      scene.fog.far = 280;
+    }
+
+    buildArena('waves');
 
     const gun = new THREE.Group();
     const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.22, 0.65), material(0x263741, { metalness: 0.4 }));
@@ -173,7 +215,7 @@
       ownedWeapons: savedProgress.ownedWeapons, timeUnlocked: savedProgress.timeUnlocked,
       yaw: 0, pitch: 0, verticalSpeed: 0
     };
-    const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, shooting: false, timeStopped: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
+    const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, mode: 'waves', runMode: null, shooting: false, timeStopped: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
     const clock = new THREE.Clock();
 
     function saveProgress() {
@@ -210,7 +252,7 @@
     }
 
     const spawnPoints = [[0, -32], [0, 32], [-32, 0], [32, 0], [-4, -20], [4, 20], [-20, 4], [20, -4]];
-    function spawnEnemy(index, type = enemyTypes.normal) {
+    function spawnEnemy(index, type = enemyTypes.normal, position = null) {
       const group = new THREE.Group();
       part(group, 0, 1.05, 0, 0.85, 1, 0.48, type.body);
       part(group, 0, 1.82, 0, 0.6, 0.55, 0.55, enemyDarkMat);
@@ -221,11 +263,11 @@
       part(group, 0.58, 1.1, 0, 0.25, 0.75, 0.3, enemyDarkMat);
       const available = spawnPoints.filter(([x, z]) => Math.hypot(x - camera.position.x, z - camera.position.z) > 12);
       const points = available.length ? available : spawnPoints;
-      const point = points[index % points.length];
+      const point = position || points[index % points.length];
       group.position.set(point[0], 0, point[1]);
       group.scale.setScalar(type.scale);
       scene.add(group);
-      enemies.push({ group, type, health: type.health, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1 });
+      enemies.push({ group, type, health: type.health, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1, target: null, targetTimer: 0 });
     }
 
     function updateHud() {
@@ -233,6 +275,12 @@
       ui.healthFill.style.width = `${player.health}%`;
       ui.healthFill.style.background = player.health <= 30 ? '#ff746c' : '#6cf4d0';
       ui.wave.textContent = String(player.wave).padStart(2, '0');
+      if (state.mode === 'last-protocol') {
+        ui.waveLabel.textContent = 'NPC VERBLEIBEND';
+        ui.wave.textContent = String(enemies.length).padStart(2, '0');
+      } else {
+        ui.waveLabel.textContent = 'AKTUELLE WELLE';
+      }
       ui.score.textContent = String(player.score).padStart(5, '0');
       ui.highscore.textContent = String(player.highscore).padStart(5, '0');
       ui.money.textContent = `$${String(player.money).padStart(3, '0')}`;
@@ -277,6 +325,43 @@
       updateHud();
     }
 
+    function createProtocolSpawns(count) {
+      const positions = [];
+      for (let cell = 0; cell < 100 && positions.length < count; cell++) {
+        const column = cell % 10;
+        const row = Math.floor(cell / 10);
+        const centerX = -100 + column * 20;
+        const centerZ = -100 + row * 20;
+        for (let attempt = 0; attempt < 80; attempt++) {
+          const x = centerX + (Math.random() - 0.5) * 18;
+          const z = centerZ + (Math.random() - 0.5) * 18;
+          if (Math.hypot(x, z) < 15 || isBlocked(x, z, 0.7)) continue;
+          if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 4)) continue;
+          positions.push([x, z]);
+          break;
+        }
+      }
+      for (let attempt = 0; attempt < 20000 && positions.length < count; attempt++) {
+        const x = (Math.random() - 0.5) * 208;
+        const z = (Math.random() - 0.5) * 208;
+        if (Math.hypot(x, z) < 15 || isBlocked(x, z, 0.7)) continue;
+        if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 3)) continue;
+        positions.push([x, z]);
+      }
+      if (positions.length !== count) {
+        throw new Error(`Es konnten nur ${positions.length} von ${count} NPC-Startpositionen gefunden werden.`);
+      }
+      return positions;
+    }
+
+    function startLastProtocol() {
+      player.wave = 0;
+      const positions = createProtocolSpawns(50);
+      positions.forEach((position, index) => spawnEnemy(index, enemyTypes.normal, position));
+      showMessage('LAST PROTOKOL · 50 NPCs');
+      updateHud();
+    }
+
     function openShop() {
       const reward = 250 + (player.wave - 1) * 100;
       player.money += reward;
@@ -291,6 +376,7 @@
       ui.description.textContent = `Welle ${player.wave} geschafft! Kaufe eine bessere Waffe und starte danach die nächste Welle.`;
       ui.controls.hidden = true;
       ui.shop.hidden = false;
+      ui.modeSelection.hidden = true;
       ui.menuButton.hidden = false;
       ui.button.innerHTML = 'NÄCHSTE WELLE <span>↗</span>';
       ui.status.textContent = '';
@@ -304,6 +390,8 @@
       state.mainMenu = false;
       ui.shop.hidden = true;
       ui.menuButton.hidden = true;
+      ui.modeSelection.hidden = true;
+      ui.modeSelection.hidden = true;
       ui.overlay.hidden = true;
       startWave();
       requestPointerLock();
@@ -314,11 +402,21 @@
       state.mainMenu = true;
       state.shooting = false;
       ui.title.innerHTML = 'NEON<br><span>DISTRICT</span>';
-      ui.description.textContent = 'Kaufe und rüste deine Waffen aus. Dein Guthaben und deine Freischaltungen bleiben dauerhaft erhalten.';
+      ui.description.textContent = state.mode === 'last-protocol'
+        ? 'Auf einer weitläufigen Karte kämpfen 50 NPCs gegeneinander und gegen dich. Überlebe und schalte so viele wie möglich aus.'
+        : 'Die Stadt gehört den Bots. Schnapp dir deine Ausrüstung, nutze die Deckung und überlebe so viele Wellen wie möglich.';
       ui.controls.hidden = true;
       ui.shop.hidden = false;
+      ui.modeSelection.hidden = false;
+      document.querySelectorAll('.mode-card').forEach(card => {
+        const selected = card.dataset.mode === state.mode;
+        card.classList.toggle('selected', selected);
+        card.setAttribute('aria-pressed', String(selected));
+      });
       ui.menuButton.hidden = true;
-      const startLabel = state.dead ? 'NEUES SPIEL STARTEN' : player.wave ? 'NÄCHSTE WELLE' : 'SPIEL STARTEN';
+      const startLabel = state.dead ? 'NEUES SPIEL STARTEN'
+        : state.mode === 'last-protocol' ? 'LAST PROTOKOL STARTEN'
+          : player.wave ? 'NÄCHSTE WELLE' : 'SPIEL STARTEN';
       ui.button.innerHTML = `${startLabel} <span>↗</span>`;
       ui.shopStatus.textContent = 'Wähle eine Waffe oder starte die nächste Welle.';
       ui.status.textContent = '';
@@ -357,6 +455,7 @@
 
     function resetGame() {
       clearActors();
+      buildArena(state.mode);
       player.health = 100;
       player.score = 0;
       player.wave = 0;
@@ -367,6 +466,7 @@
       camera.rotation.set(0, 0, 0);
       state.dead = false;
       state.started = true;
+      state.runMode = state.mode;
       state.shopOpen = false;
       state.mainMenu = false;
       state.shooting = false;
@@ -376,7 +476,9 @@
       keys.clear();
       ui.shop.hidden = true;
       ui.menuButton.hidden = true;
-      startWave();
+      ui.modeSelection.hidden = true;
+      if (state.mode === 'last-protocol') startLastProtocol();
+      else startWave();
     }
 
     function showOverlay(title, description, button) {
@@ -384,6 +486,7 @@
       ui.description.textContent = description;
       ui.controls.hidden = true;
       ui.shop.hidden = true;
+      ui.modeSelection.hidden = true;
       ui.menuButton.hidden = true;
       ui.button.innerHTML = `${button} <span>↗</span>`;
       ui.status.textContent = '';
@@ -393,20 +496,25 @@
     function endGame() {
       state.dead = true;
       state.shooting = false;
-      showOverlay('GAME<br><span>OVER</span>', `Du hast Welle ${player.wave} erreicht und ${player.score} Punkte gesammelt. Schaffst du beim nächsten Versuch mehr?`, 'NOCHMAL SPIELEN');
+      const result = state.mode === 'last-protocol'
+        ? `Du hast ${player.score} Punkte gesammelt und ${enemies.length} NPCs sind noch übrig.`
+        : `Du hast Welle ${player.wave} erreicht und ${player.score} Punkte gesammelt. Schaffst du beim nächsten Versuch mehr?`;
+      showOverlay('GAME<br><span>OVER</span>', result, 'NOCHMAL SPIELEN');
       ui.menuButton.hidden = false;
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
     }
 
-    function damageEnemy(enemy, damage, now) {
+    function damageEnemy(enemy, damage, now, credited = true) {
       enemy.health -= damage;
-      ui.hit.style.opacity = '1';
-      state.hitUntil = now + 130;
+      if (credited) {
+        ui.hit.style.opacity = '1';
+        state.hitUntil = now + 130;
+      }
       if (enemy.health <= 0) {
         scene.remove(enemy.group);
         enemies.splice(enemies.indexOf(enemy), 1);
-        player.score += enemy.type.score;
-        if (player.score > player.highscore) {
+        if (credited) player.score += enemy.type.score;
+        if (credited && player.score > player.highscore) {
           player.highscore = player.score;
           if (!saveProgress()) showMessage('HIGHSCORE KONNTE NICHT GESPEICHERT WERDEN', 4);
         }
@@ -501,24 +609,53 @@
       updateHud();
     }
 
-    function enemyShoot(enemy, distance) {
+    function nearestOpponent(enemy) {
+      let nearestTarget = null;
+      const playerDistance = enemy.group.position.distanceToSquared(camera.position);
+      let nearestDistance = playerDistance;
+      let visibleTarget = null;
+      const playerVisible = hasLineOfSight(enemy, camera.position);
+      let visibleDistance = playerVisible ? playerDistance : Infinity;
+      for (const opponent of enemies) {
+        if (opponent === enemy) continue;
+        const targetPosition = opponent.group.position.clone().add(new THREE.Vector3(0, 1.1 * opponent.type.scale, 0));
+        const distance = enemy.group.position.distanceToSquared(opponent.group.position);
+        if (distance < nearestDistance) {
+          nearestTarget = opponent;
+          nearestDistance = distance;
+        }
+        if (distance < visibleDistance && hasLineOfSight(enemy, targetPosition)) {
+          visibleTarget = opponent;
+          visibleDistance = distance;
+        }
+      }
+      if (visibleTarget) return visibleTarget;
+      if (playerVisible) return null;
+      return nearestTarget;
+    }
+
+    function enemyShoot(enemy, targetEnemy = null) {
       const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35 * enemy.type.scale, 0));
-      const target = camera.position.clone();
+      const targetPosition = targetEnemy
+        ? targetEnemy.group.position.clone().add(new THREE.Vector3(0, 1.1 * targetEnemy.type.scale, 0))
+        : camera.position;
+      const distance = origin.distanceTo(targetPosition);
+      const target = targetPosition.clone();
       target.x += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
       target.z += (Math.random() - 0.5) * Math.min(distance * 0.04, 0.8);
       const direction = target.sub(origin).normalize();
       const mesh = new THREE.Mesh(bulletGeometry, bulletMat);
       mesh.position.copy(origin);
       scene.add(mesh);
-      bullets.push({ mesh, velocity: direction.multiplyScalar(12), life: 4, damage: enemy.type.damage });
+      bullets.push({ mesh, velocity: direction.multiplyScalar(12), life: 4, damage: enemy.type.damage, owner: enemy });
     }
 
-    function hasLineOfSight(enemy) {
+    function hasLineOfSight(enemy, targetPosition = camera.position) {
       const origin = enemy.group.position.clone().add(new THREE.Vector3(0, 1.35 * enemy.type.scale, 0));
-      const direction = camera.position.clone().sub(origin).normalize();
+      const direction = targetPosition.clone().sub(origin).normalize();
       raycaster.set(origin, direction);
       const hit = raycaster.intersectObjects(coverMeshes, false)[0];
-      return !hit || hit.distance > origin.distanceTo(camera.position);
+      return !hit || hit.distance > origin.distanceTo(targetPosition);
     }
 
     function update(dt, now) {
@@ -541,10 +678,21 @@
         updateSeekerBullets(dt, now);
         gun.position.z += (-0.65 - gun.position.z) * Math.min(1, dt * 12);
 
-        for (const enemy of enemies) {
-          if (state.timeStopped) break;
-          const dx = camera.position.x - enemy.group.position.x;
-          const dz = camera.position.z - enemy.group.position.z;
+        for (const enemy of [...enemies]) {
+          if (state.timeStopped || !enemies.includes(enemy)) break;
+          if (state.mode === 'last-protocol') {
+            enemy.targetTimer -= dt;
+            if (enemy.targetTimer <= 0 || (enemy.target && !enemies.includes(enemy.target))) {
+              enemy.target = nearestOpponent(enemy);
+              enemy.targetTimer = 0.5 + Math.random() * 0.35;
+            }
+          }
+          const targetEnemy = state.mode === 'last-protocol' ? enemy.target : null;
+          const targetPosition = targetEnemy
+            ? targetEnemy.group.position.clone().add(new THREE.Vector3(0, 1.1 * targetEnemy.type.scale, 0))
+            : camera.position;
+          const dx = targetPosition.x - enemy.group.position.x;
+          const dz = targetPosition.z - enemy.group.position.z;
           const distance = Math.hypot(dx, dz) || 1;
           enemy.group.rotation.y = Math.atan2(dx, dz);
           if (distance > 8) {
@@ -558,8 +706,9 @@
             }
           }
           enemy.cooldown -= dt;
-          if (enemy.cooldown <= 0 && distance < 30 && hasLineOfSight(enemy)) {
-            enemyShoot(enemy, distance);
+          const firingRange = state.mode === 'last-protocol' ? 34 : 30;
+          if (enemy.cooldown <= 0 && distance < firingRange && hasLineOfSight(enemy, targetPosition)) {
+            enemyShoot(enemy, targetEnemy);
             enemy.cooldown = Math.max(0.8, 2.4 - player.wave * 0.05) + Math.random();
           }
         }
@@ -571,13 +720,22 @@
           bullet.life -= dt;
           const p = bullet.mesh.position;
           const hitPlayer = Math.hypot(p.x - camera.position.x, p.z - camera.position.z) < 0.65 && Math.abs(p.y - camera.position.y) < 0.8;
+          let hitEnemy = null;
+          if (!hitPlayer && state.mode === 'last-protocol') {
+            hitEnemy = enemies.find(enemy => enemy !== bullet.owner
+              && Math.hypot(p.x - enemy.group.position.x, p.z - enemy.group.position.z) < 0.7
+              && Math.abs(p.y - 1.1 * enemy.type.scale) < 0.8);
+          }
           if (hitPlayer) {
             player.health = Math.max(0, player.health - bullet.damage);
             ui.flash.style.opacity = '0.35';
             state.flashUntil = now + 140;
             updateHud();
+          } else if (hitEnemy) {
+            damageEnemy(hitEnemy, bullet.damage, now, false);
+            updateHud();
           }
-          if (hitPlayer || bullet.life <= 0 || isBlocked(p.x, p.z, 0.1)) {
+          if (hitPlayer || hitEnemy || bullet.life <= 0 || isBlocked(p.x, p.z, 0.1)) {
             scene.remove(bullet.mesh);
             bullets.splice(i, 1);
           }
@@ -586,7 +744,17 @@
             break;
           }
         }
-        if (!state.dead && enemies.length === 0 && !state.shopOpen) openShop();
+        if (!state.dead && enemies.length === 0 && !state.shopOpen) {
+          if (state.mode === 'last-protocol') {
+            state.dead = true;
+            state.shooting = false;
+            showOverlay('PROTOKOLL<br><span>BEENDET</span>', `Du hast alle NPCs ausgeschaltet und ${player.score} Punkte gesammelt.`, 'NOCHMAL SPIELEN');
+            ui.menuButton.hidden = false;
+            if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
+          } else {
+            openShop();
+          }
+        }
       }
       if (state.messageUntil && now >= state.messageUntil) { ui.message.style.opacity = '0'; state.messageUntil = 0; }
       if (state.flashUntil && now >= state.flashUntil) { ui.flash.style.opacity = '0'; state.flashUntil = 0; }
@@ -594,14 +762,34 @@
       renderer.render(scene, camera);
     }
 
+    ui.modeSelection.addEventListener('click', event => {
+      const card = event.target.closest('.mode-card');
+      if (!card || !ui.modeSelection.contains(card)) return;
+      state.mode = card.dataset.mode;
+      document.querySelectorAll('.mode-card').forEach(modeCard => {
+        const selected = modeCard === card;
+        modeCard.classList.toggle('selected', selected);
+        modeCard.setAttribute('aria-pressed', String(selected));
+      });
+      buildArena(state.mode);
+      ui.description.textContent = state.mode === 'last-protocol'
+        ? 'Auf einer weitläufigen Karte kämpfen 50 NPCs gegeneinander und gegen dich. Überlebe und schalte so viele wie möglich aus.'
+        : 'Die Stadt gehört den Bots. Schnapp dir deine Ausrüstung, nutze die Deckung und überlebe so viele Wellen wie möglich.';
+      ui.button.innerHTML = state.mode === 'last-protocol'
+        ? 'LAST PROTOKOL STARTEN <span>↗</span>'
+        : state.dead ? 'NEUES SPIEL STARTEN <span>↗</span>'
+          : player.wave ? 'NÄCHSTE WELLE <span>↗</span>' : 'SPIEL STARTEN <span>↗</span>';
+    });
+
     ui.button.addEventListener('click', () => {
       ui.secretButton.hidden = true;
+      ui.modeSelection.hidden = true;
       if (state.shopOpen) {
         continueFromShop();
         return;
       }
       if (state.mainMenu) {
-        if (state.started && !state.dead) {
+        if (state.started && !state.dead && state.runMode === state.mode) {
           state.mainMenu = false;
           ui.shop.hidden = true;
           ui.overlay.hidden = true;
