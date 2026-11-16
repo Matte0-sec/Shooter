@@ -312,6 +312,7 @@
         group, type, health, maxHealth: health, ammo: maxAmmo, weapon,
         cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1,
         strafeTimer: 1.5 + Math.random() * 2, dodgeTimer: 0, dodgeDirection: 1,
+        verticalSpeed: 0, jumpCooldown: 0,
         target: null, targetTimer: 0
       });
     }
@@ -749,10 +750,10 @@
 
     function alertEnemiesToShot(seekerTarget) {
       raycaster.setFromCamera(center, camera);
-      const direction = raycaster.ray.direction;
+      const direction = raycaster.ray.direction.clone();
       for (const enemy of enemies) {
         const x = enemy.group.position.x - camera.position.x;
-        const y = 1.05 * enemy.type.scale - camera.position.y;
+        const y = enemy.group.position.y + 1.05 * enemy.type.scale - camera.position.y;
         const z = enemy.group.position.z - camera.position.z;
         const along = x * direction.x + y * direction.y + z * direction.z;
         const offset = Math.hypot(x - along * direction.x, y - along * direction.y, z - along * direction.z);
@@ -760,6 +761,10 @@
         if (threatened && enemy.dodgeTimer <= 0) {
           enemy.dodgeDirection = Math.random() < 0.5 ? -1 : 1;
           enemy.dodgeTimer = 0.7;
+          if (enemy.group.position.y === 0 && enemy.jumpCooldown <= 0 && Math.random() < 0.35) {
+            enemy.verticalSpeed = 5.5;
+            enemy.jumpCooldown = 2.5;
+          }
         }
       }
     }
@@ -904,6 +909,15 @@
 
         for (const enemy of [...enemies]) {
           if (state.timeStopped || !enemies.includes(enemy)) break;
+          enemy.jumpCooldown = Math.max(0, enemy.jumpCooldown - dt);
+          if (enemy.group.position.y > 0 || enemy.verticalSpeed > 0) {
+            enemy.verticalSpeed -= 20 * dt;
+            enemy.group.position.y += enemy.verticalSpeed * dt;
+            if (enemy.group.position.y <= 0) {
+              enemy.group.position.y = 0;
+              enemy.verticalSpeed = 0;
+            }
+          }
           if (state.mode === 'last-protocol') {
             enemy.targetTimer -= dt;
             if (enemy.targetTimer <= 0 || (enemy.target && !enemies.includes(enemy.target))) {
@@ -940,7 +954,7 @@
           }
           const moveDistance = Math.hypot(moveX, moveZ) || 1;
           if (dodging || !pickup || moveDistance > pickupRange) {
-            const speed = dodging ? 4.5 : Math.min(2.2 + player.wave * 0.07, 3.8);
+            const speed = dodging ? 3.2 : Math.min(2.2 + player.wave * 0.07, 3.8);
             const step = speed * enemy.type.speed * dt;
             const radius = 0.5 * enemy.type.scale;
             const oldX = enemy.group.position.x;
@@ -977,7 +991,7 @@
           if (!hitPlayer && state.mode === 'last-protocol') {
             hitEnemy = enemies.find(enemy => enemy !== bullet.owner
               && Math.hypot(p.x - enemy.group.position.x, p.z - enemy.group.position.z) < 0.7
-              && Math.abs(p.y - 1.1 * enemy.type.scale) < 0.8);
+              && Math.abs(p.y - enemy.group.position.y - 1.1 * enemy.type.scale) < 0.8);
           }
           if (hitPlayer) {
             player.health = Math.max(0, player.health - bullet.damage);
