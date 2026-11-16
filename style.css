@@ -50,6 +50,11 @@ h1 { margin: 24px 0 16px; font: 900 clamp(70px, 9vw, 126px)/.72 "Barlow Condense
 #overlay-description { max-width: 410px; color: #a9bac8; line-height: 1.75; font-size: 14px; }
 .highscore { color: #a9bac8; font-size: 10px; font-weight: 700; letter-spacing: 1.5px; }
 .highscore strong { margin-left: 8px; color: #78f3d4; font: 700 24px "Barlow Condensed", sans-serif; }
+.match-result { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; width: min(390px, 100%); margin: 20px 0; }
+.match-result[hidden] { display: none; }
+.match-result div { padding: 12px; border: 1px solid #415361; background: rgba(25, 42, 52, .9); }
+.match-result span { display: block; color: #a9bac8; font-size: 10px; font-weight: 700; letter-spacing: 1px; }
+.match-result strong { display: block; margin-top: 5px; color: #78f3d4; font: 700 28px "Barlow Condensed", sans-serif; }
 .mode-selection { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 20px 0; width: min(460px, 100%); }
 .mode-selection[hidden] { display: none; }
 .mode-card { min-height: 78px; padding: 11px 12px; border: 1px solid #415361; background: rgba(25, 42, 52, .9); color: #eefcf8; text-align: left; cursor: pointer; transition: border-color .2s, background .2s; }

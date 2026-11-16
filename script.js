@@ -15,7 +15,9 @@
     menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button'),
     secretButton: $('secret-button'), pinBoard: $('pin-board'), pinDisplay: $('pin-display'),
     pinStatus: $('pin-status'), timeStatus: $('time-status'), codeHint: $('code-hint'),
-    pickupHint: $('pickup-hint'), pickupControl: $('pickup-control')
+    pickupHint: $('pickup-hint'), pickupControl: $('pickup-control'),
+    matchResult: $('match-result'), resultPlace: $('result-place'), resultKills: $('result-kills'),
+    resultTime: $('result-time'), resultScore: $('result-score')
   };
 
   async function init() {
@@ -233,10 +235,12 @@
     const player = {
       health: 100, score: 0, highscore: savedProgress.highscore, money: savedProgress.money, wave: 0, weapon: savedProgress.weapon,
       ownedWeapons: savedProgress.ownedWeapons, timeUnlocked: savedProgress.timeUnlocked,
-      yaw: 0, pitch: 0, verticalSpeed: 0, ammo: maxAmmo
+      yaw: 0, pitch: 0, verticalSpeed: 0, ammo: maxAmmo, kills: 0
     };
     const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, mode: 'waves', runMode: null, shooting: false, timeStopped: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
     const clock = new THREE.Clock();
+    let activeTime = 0;
+    let activeSince = null;
 
     function saveProgress() {
       try {
@@ -453,6 +457,7 @@
         ? 'Auf einer weitläufigen Karte kämpfen 50 NPCs gegeneinander und gegen dich. Überlebe und schalte so viele wie möglich aus.'
         : 'Die Stadt gehört den Bots. Schnapp dir deine Ausrüstung, nutze die Deckung und überlebe so viele Wellen wie möglich.';
       ui.controls.hidden = true;
+      ui.matchResult.hidden = true;
       ui.shop.hidden = false;
       ui.modeSelection.hidden = false;
       document.querySelectorAll('.mode-card').forEach(card => {
@@ -509,6 +514,9 @@
       player.health = 100;
       player.ammo = maxAmmo;
       player.score = 0;
+      player.kills = 0;
+      activeTime = 0;
+      activeSince = null;
       player.wave = 0;
       player.yaw = 0;
       player.pitch = 0;
@@ -526,6 +534,7 @@
       state.lastShot = 0;
       keys.clear();
       ui.shop.hidden = true;
+      ui.matchResult.hidden = true;
       ui.menuButton.hidden = true;
       ui.modeSelection.hidden = true;
       if (state.mode === 'last-protocol') startLastProtocol();
@@ -536,6 +545,7 @@
       ui.title.innerHTML = title;
       ui.description.textContent = description;
       ui.controls.hidden = true;
+      ui.matchResult.hidden = true;
       ui.shop.hidden = true;
       ui.modeSelection.hidden = true;
       ui.menuButton.hidden = true;
@@ -544,13 +554,33 @@
       ui.overlay.hidden = false;
     }
 
+    function stopMatchTimer() {
+      if (activeSince !== null) {
+        activeTime += performance.now() - activeSince;
+        activeSince = null;
+      }
+    }
+
+    function showMatchResult(won) {
+      stopMatchTimer();
+      const seconds = Math.floor(activeTime / 1000);
+      showOverlay(won ? 'DU<br><span>SIEGST!</span>' : 'GAME<br><span>OVER</span>',
+        won ? 'Du bist der letzte Überlebende!' : 'Dein Protokoll ist beendet.', 'NOCHMAL SPIELEN');
+      ui.resultPlace.textContent = `#${won ? 1 : enemies.length + 1} / 51`;
+      ui.resultKills.textContent = player.kills;
+      ui.resultTime.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+      ui.resultScore.textContent = player.score;
+      ui.matchResult.hidden = false;
+    }
+
     function endGame() {
       state.dead = true;
       state.shooting = false;
-      const result = state.mode === 'last-protocol'
-        ? `Du hast ${player.score} Punkte gesammelt und ${enemies.length} NPCs sind noch übrig.`
-        : `Du hast Welle ${player.wave} erreicht und ${player.score} Punkte gesammelt. Schaffst du beim nächsten Versuch mehr?`;
-      showOverlay('GAME<br><span>OVER</span>', result, 'NOCHMAL SPIELEN');
+      if (state.mode === 'last-protocol') {
+        showMatchResult(false);
+      } else {
+        showOverlay('GAME<br><span>OVER</span>', `Du hast Welle ${player.wave} erreicht und ${player.score} Punkte gesammelt. Schaffst du beim nächsten Versuch mehr?`, 'NOCHMAL SPIELEN');
+      }
       ui.menuButton.hidden = false;
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
     }
@@ -565,7 +595,10 @@
         if (state.mode === 'last-protocol') dropPickups(enemy.group.position);
         scene.remove(enemy.group);
         enemies.splice(enemies.indexOf(enemy), 1);
-        if (credited) player.score += enemy.type.score;
+        if (credited) {
+          player.score += enemy.type.score;
+          player.kills++;
+        }
         if (credited && player.score > player.highscore) {
           player.highscore = player.score;
           if (!saveProgress()) showMessage('HIGHSCORE KONNTE NICHT GESPEICHERT WERDEN', 4);
@@ -882,7 +915,7 @@
           if (state.mode === 'last-protocol') {
             state.dead = true;
             state.shooting = false;
-            showOverlay('PROTOKOLL<br><span>BEENDET</span>', `Du hast alle NPCs ausgeschaltet und ${player.score} Punkte gesammelt.`, 'NOCHMAL SPIELEN');
+            showMatchResult(true);
             ui.menuButton.hidden = false;
             if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
           } else {
@@ -1055,11 +1088,15 @@
       state.shooting = false;
       keys.clear();
       if (state.locked) {
+        if (state.started && !state.dead && state.mode === 'last-protocol') activeSince = performance.now();
         ui.overlay.hidden = true;
         ui.hud.hidden = false;
         clock.getDelta();
-      } else if (state.started && !state.dead && !state.shopOpen) {
-        showOverlay('PAUSE<br><span>MODUS</span>', 'Die Arena wartet auf dich. Klicke auf Weiter, um wieder einzusteigen.', 'WEITER SPIELEN');
+      } else {
+        stopMatchTimer();
+        if (state.started && !state.dead && !state.shopOpen) {
+          showOverlay('PAUSE<br><span>MODUS</span>', 'Die Arena wartet auf dich. Klicke auf Weiter, um wieder einzusteigen.', 'WEITER SPIELEN');
+        }
       }
     });
     document.addEventListener('pointerlockerror', () => {
