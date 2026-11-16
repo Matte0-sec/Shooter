@@ -308,7 +308,12 @@
       group.position.set(point[0], 0, point[1]);
       group.scale.setScalar(type.scale);
       scene.add(group);
-      enemies.push({ group, type, health, maxHealth: health, ammo: maxAmmo, weapon, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1, target: null, targetTimer: 0 });
+      enemies.push({
+        group, type, health, maxHealth: health, ammo: maxAmmo, weapon,
+        cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1,
+        strafeTimer: 1.5 + Math.random() * 2, dodgeTimer: 0, dodgeDirection: 1,
+        target: null, targetTimer: 0
+      });
     }
 
     function updateHud() {
@@ -742,6 +747,23 @@
       }
     }
 
+    function alertEnemiesToShot(seekerTarget) {
+      raycaster.setFromCamera(center, camera);
+      const direction = raycaster.ray.direction;
+      for (const enemy of enemies) {
+        const x = enemy.group.position.x - camera.position.x;
+        const y = 1.05 * enemy.type.scale - camera.position.y;
+        const z = enemy.group.position.z - camera.position.z;
+        const along = x * direction.x + y * direction.y + z * direction.z;
+        const offset = Math.hypot(x - along * direction.x, y - along * direction.y, z - along * direction.z);
+        const threatened = enemy === seekerTarget || (along > 0 && offset < 1.5 + along * 0.08 && hasLineOfSight(enemy, camera.position));
+        if (threatened && enemy.dodgeTimer <= 0) {
+          enemy.dodgeDirection = Math.random() < 0.5 ? -1 : 1;
+          enemy.dodgeTimer = 0.7;
+        }
+      }
+    }
+
     function shoot(now) {
       const weapon = weapons[player.weapon];
       if (now - state.lastShot < weapon.cooldown) return;
@@ -762,6 +784,7 @@
         player.ammo--;
         updateHud();
       }
+      alertEnemiesToShot(target);
       gun.position.z = -0.55;
       if (player.weapon === 'seeker') {
         const mesh = new THREE.Mesh(bulletGeometry, seekerBulletMat);
@@ -897,17 +920,40 @@
           const distance = Math.hypot(dx, dz) || 1;
           enemy.group.rotation.y = Math.atan2(dx, dz);
           const pickup = state.mode === 'last-protocol' ? nearbyEnemyPickup(enemy) : null;
-          const moveX = pickup ? pickup.group.position.x - enemy.group.position.x : dx;
-          const moveZ = pickup ? pickup.group.position.z - enemy.group.position.z : dz;
+          enemy.strafeTimer -= dt;
+          if (enemy.strafeTimer <= 0) {
+            enemy.strafe *= -1;
+            enemy.strafeTimer = 1.5 + Math.random() * 2;
+          }
+          const dodging = enemy.dodgeTimer > 0;
+          enemy.dodgeTimer = Math.max(0, enemy.dodgeTimer - dt);
+          let moveX = pickup ? pickup.group.position.x - enemy.group.position.x : dx;
+          let moveZ = pickup ? pickup.group.position.z - enemy.group.position.z : dz;
+          if (dodging) {
+            const playerX = camera.position.x - enemy.group.position.x;
+            const playerZ = camera.position.z - enemy.group.position.z;
+            moveX = -playerZ * enemy.dodgeDirection;
+            moveZ = playerX * enemy.dodgeDirection;
+          } else if (!pickup && distance <= 12) {
+            moveX = -dz * enemy.strafe - (distance < 4 ? dx : 0);
+            moveZ = dx * enemy.strafe - (distance < 4 ? dz : 0);
+          }
           const moveDistance = Math.hypot(moveX, moveZ) || 1;
-          if (pickup ? moveDistance > pickupRange : distance > 8) {
-            const step = Math.min(2.2 + player.wave * 0.07, 3.8) * enemy.type.speed * dt;
+          if (dodging || !pickup || moveDistance > pickupRange) {
+            const speed = dodging ? 4.5 : Math.min(2.2 + player.wave * 0.07, 3.8);
+            const step = speed * enemy.type.speed * dt;
             const radius = 0.5 * enemy.type.scale;
             const oldX = enemy.group.position.x;
             const oldZ = enemy.group.position.z;
             moveWithCollision(enemy.group.position, moveX / moveDistance * step, moveZ / moveDistance * step, radius);
             if (Math.abs(enemy.group.position.x - oldX) + Math.abs(enemy.group.position.z - oldZ) < step * 0.1) {
-              moveWithCollision(enemy.group.position, -moveZ / moveDistance * step * enemy.strafe, moveX / moveDistance * step * enemy.strafe, radius);
+              if (dodging || (!pickup && distance <= 12)) {
+                enemy.strafe *= -1;
+                if (dodging) enemy.dodgeDirection *= -1;
+                moveWithCollision(enemy.group.position, -moveX / moveDistance * step, -moveZ / moveDistance * step, radius);
+              } else {
+                moveWithCollision(enemy.group.position, -moveZ / moveDistance * step * enemy.strafe, moveX / moveDistance * step * enemy.strafe, radius);
+              }
             }
           }
           if (pickup) collectEnemyPickup(enemy, pickup);
