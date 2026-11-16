@@ -14,7 +14,7 @@
     weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
     menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button'),
     secretButton: $('secret-button'), pinBoard: $('pin-board'), pinDisplay: $('pin-display'),
-    pinStatus: $('pin-status'), timeStatus: $('time-status'), codeHint: $('code-hint'),
+    pinStatus: $('pin-status'), timeStatus: $('time-status'), zoneStatus: $('zone-status'), codeHint: $('code-hint'),
     pickupHint: $('pickup-hint'), pickupControl: $('pickup-control'),
     matchResult: $('match-result'), resultPlace: $('result-place'), resultKills: $('result-kills'),
     resultTime: $('result-time'), resultScore: $('result-score')
@@ -240,6 +240,17 @@
       yaw: 0, pitch: 0, verticalSpeed: 0, ammo: maxAmmo, kills: 0
     };
     const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, mode: 'waves', runMode: null, shooting: false, timeStopped: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
+    const zoneMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(1, 1, 1, 96, 1, true),
+      new THREE.MeshBasicMaterial({ color: 0x4abaff, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide })
+    );
+    zoneMesh.position.y = 18;
+    zoneMesh.visible = false;
+    scene.add(zoneMesh);
+    const zone = { radius: 230, elapsed: 0, next: null };
+    const zoneGridStep = 4;
+    const zoneGridSize = (protocolHalfSize - 4) * 2 / zoneGridStep + 1;
+    const zoneGridOrigin = -protocolHalfSize + 4;
     const clock = new THREE.Clock();
     let activeTime = 0;
     let activeSince = null;
@@ -313,7 +324,7 @@
         cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1,
         strafeTimer: 1.5 + Math.random() * 2, dodgeTimer: 0, dodgeDirection: 1,
         verticalSpeed: 0, jumpCooldown: 0,
-        target: null, targetTimer: 0
+        target: null, targetTimer: 0, zoneWaypoint: null, zonePathWarning: false
       });
     }
 
@@ -413,8 +424,121 @@
       return positions;
     }
 
+    function buildZonePaths() {
+      const total = zoneGridSize * zoneGridSize;
+      const blocked = new Uint8Array(total);
+      const next = new Int32Array(total).fill(-1);
+      const queue = new Int32Array(total);
+      for (let z = 0; z < zoneGridSize; z++) {
+        for (let x = 0; x < zoneGridSize; x++) {
+          blocked[z * zoneGridSize + x] = isBlocked(zoneGridOrigin + x * zoneGridStep, zoneGridOrigin + z * zoneGridStep, 0.7) ? 1 : 0;
+        }
+      }
+      const middle = Math.floor(zoneGridSize / 2);
+      const start = middle * zoneGridSize + middle;
+      next[start] = start;
+      queue[0] = start;
+      let head = 0;
+      let tail = 1;
+      while (head < tail) {
+        const current = queue[head++];
+        const x = current % zoneGridSize;
+        const z = Math.floor(current / zoneGridSize);
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nx = x + dx;
+          const nz = z + dz;
+          if (nx < 0 || nz < 0 || nx >= zoneGridSize || nz >= zoneGridSize) continue;
+          const neighbor = nz * zoneGridSize + nx;
+          if (blocked[neighbor] || next[neighbor] !== -1) continue;
+          const midpointX = zoneGridOrigin + (x + dx / 2) * zoneGridStep;
+          const midpointZ = zoneGridOrigin + (z + dz / 2) * zoneGridStep;
+          if (isBlocked(midpointX, midpointZ, 0.7)) continue;
+          next[neighbor] = current;
+          queue[tail++] = neighbor;
+        }
+      }
+      zone.next = next;
+    }
+
+    function zoneWaypointPosition(index) {
+      return {
+        x: zoneGridOrigin + (index % zoneGridSize) * zoneGridStep,
+        z: zoneGridOrigin + Math.floor(index / zoneGridSize) * zoneGridStep
+      };
+    }
+
+    function findZoneWaypoint(enemy) {
+      const position = enemy.group.position;
+      const gridX = Math.round((position.x - zoneGridOrigin) / zoneGridStep);
+      const gridZ = Math.round((position.z - zoneGridOrigin) / zoneGridStep);
+      let nearest = null;
+      let nearestDistance = Infinity;
+      for (let z = gridZ - 2; z <= gridZ + 2; z++) {
+        for (let x = gridX - 2; x <= gridX + 2; x++) {
+          if (x < 0 || z < 0 || x >= zoneGridSize || z >= zoneGridSize) continue;
+          const index = z * zoneGridSize + x;
+          if (zone.next[index] === -1) continue;
+          const point = zoneWaypointPosition(index);
+          const distance = Math.hypot(point.x - position.x, point.z - position.z);
+          if (distance >= nearestDistance) continue;
+          const steps = Math.ceil(distance);
+          let clear = true;
+          for (let i = 1; i <= steps; i++) {
+            if (isBlocked(position.x + (point.x - position.x) * i / steps, position.z + (point.z - position.z) * i / steps, 0.5 * enemy.type.scale)) {
+              clear = false;
+              break;
+            }
+          }
+          if (clear) {
+            nearest = index;
+            nearestDistance = distance;
+          }
+        }
+      }
+      if (nearest === null && !enemy.zonePathWarning) {
+        console.warn('NPC konnte keinen Weg zur sicheren Zone finden.');
+        enemy.zonePathWarning = true;
+      }
+      return nearest;
+    }
+
+    function updateZone(dt, now) {
+      zone.elapsed += dt;
+      zone.radius = Math.max(22, 230 - Math.max(0, zone.elapsed - 30) * 208 / 420);
+      zoneMesh.scale.set(zone.radius, 36, zone.radius);
+      const outside = Math.hypot(camera.position.x, camera.position.z) > zone.radius;
+      const text = outside
+        ? `GEFAHRENZONE · ZUR STADTMITTE! (${Math.ceil(Math.hypot(camera.position.x, camera.position.z) - zone.radius)} M)`
+        : `SICHERE ZONE · RADIUS ${Math.ceil(zone.radius)} M`;
+      if (ui.zoneStatus.textContent !== text) ui.zoneStatus.textContent = text;
+      ui.zoneStatus.classList.toggle('danger', outside);
+      let damaged = false;
+      for (const enemy of [...enemies]) {
+        if (Math.hypot(enemy.group.position.x, enemy.group.position.z) > zone.radius) {
+          damageEnemy(enemy, 5 * dt, now, false);
+          damaged = true;
+        }
+      }
+      if (outside) {
+        player.health = Math.max(0, player.health - 5 * dt);
+        ui.flash.style.opacity = '0.2';
+        state.flashUntil = now + 140;
+        damaged = true;
+      }
+      if (damaged) updateHud();
+      if (player.health <= 0) endGame();
+    }
+
     function startLastProtocol() {
       player.wave = 0;
+      zone.radius = 230;
+      zone.elapsed = 0;
+      zoneMesh.scale.set(zone.radius, 36, zone.radius);
+      zoneMesh.visible = true;
+      ui.zoneStatus.hidden = false;
+      ui.zoneStatus.textContent = 'SICHERE ZONE · RADIUS 230 M';
+      ui.zoneStatus.classList.remove('danger');
+      buildZonePaths();
       const positions = createProtocolSpawns(50);
       positions.forEach((position, index) => {
         const health = 28 + Math.floor(Math.random() * 7);
@@ -486,6 +610,7 @@
       ui.overlay.hidden = false;
       ui.hud.hidden = true;
       ui.secretButton.hidden = false;
+      zoneMesh.visible = false;
       updateHud();
       if (document.pointerLockElement === renderer.domElement) document.exitPointerLock();
     }
@@ -517,6 +642,9 @@
       bullets.length = 0;
       pickups.length = 0;
       ui.pickupHint.hidden = true;
+      ui.zoneStatus.hidden = true;
+      zoneMesh.visible = false;
+      zone.next = null;
     }
 
     function resetGame() {
@@ -903,6 +1031,13 @@
           camera.position.y = groundHeight;
           player.verticalSpeed = 0;
         }
+        if (state.mode === 'last-protocol' && !state.timeStopped) {
+          updateZone(dt, now);
+          if (state.dead) {
+            renderer.render(scene, camera);
+            return;
+          }
+        }
         if (state.shooting) shoot(now);
         updateSeekerBullets(dt, now);
         gun.position.z += (-0.65 - gun.position.z) * Math.min(1, dt * 12);
@@ -933,35 +1068,57 @@
           const dz = targetPosition.z - enemy.group.position.z;
           const distance = Math.hypot(dx, dz) || 1;
           enemy.group.rotation.y = Math.atan2(dx, dz);
-          const pickup = state.mode === 'last-protocol' ? nearbyEnemyPickup(enemy) : null;
+          const escapingZone = state.mode === 'last-protocol'
+            && Math.hypot(enemy.group.position.x, enemy.group.position.z) > zone.radius - 3;
+          const pickup = state.mode === 'last-protocol' && !escapingZone ? nearbyEnemyPickup(enemy) : null;
           enemy.strafeTimer -= dt;
           if (enemy.strafeTimer <= 0) {
             enemy.strafe *= -1;
             enemy.strafeTimer = 1.5 + Math.random() * 2;
           }
-          const dodging = enemy.dodgeTimer > 0;
+          const dodging = !escapingZone && enemy.dodgeTimer > 0;
           enemy.dodgeTimer = Math.max(0, enemy.dodgeTimer - dt);
           let moveX = pickup ? pickup.group.position.x - enemy.group.position.x : dx;
           let moveZ = pickup ? pickup.group.position.z - enemy.group.position.z : dz;
-          if (dodging) {
+          if (escapingZone) {
+            if (enemy.zoneWaypoint === null) enemy.zoneWaypoint = findZoneWaypoint(enemy);
+            if (enemy.zoneWaypoint !== null) {
+              let point = zoneWaypointPosition(enemy.zoneWaypoint);
+              if (Math.hypot(point.x - enemy.group.position.x, point.z - enemy.group.position.z) < 0.25) {
+                enemy.zoneWaypoint = zone.next[enemy.zoneWaypoint];
+                point = zoneWaypointPosition(enemy.zoneWaypoint);
+              }
+              moveX = point.x - enemy.group.position.x;
+              moveZ = point.z - enemy.group.position.z;
+            } else {
+              moveX = -enemy.group.position.x;
+              moveZ = -enemy.group.position.z;
+            }
+          } else if (dodging) {
+            enemy.zoneWaypoint = null;
             const playerX = camera.position.x - enemy.group.position.x;
             const playerZ = camera.position.z - enemy.group.position.z;
             moveX = -playerZ * enemy.dodgeDirection;
             moveZ = playerX * enemy.dodgeDirection;
-          } else if (!pickup && distance <= 12) {
-            moveX = -dz * enemy.strafe - (distance < 4 ? dx : 0);
-            moveZ = dx * enemy.strafe - (distance < 4 ? dz : 0);
+          } else {
+            enemy.zoneWaypoint = null;
+            if (!pickup && distance <= 12) {
+              moveX = -dz * enemy.strafe - (distance < 4 ? dx : 0);
+              moveZ = dx * enemy.strafe - (distance < 4 ? dz : 0);
+            }
           }
           const moveDistance = Math.hypot(moveX, moveZ) || 1;
-          if (dodging || !pickup || moveDistance > pickupRange) {
-            const speed = dodging ? 3.2 : Math.min(2.2 + player.wave * 0.07, 3.8);
-            const step = speed * enemy.type.speed * dt;
+          if (escapingZone || dodging || !pickup || moveDistance > pickupRange) {
+            const speed = escapingZone ? 4.5 : dodging ? 3.2 : Math.min(2.2 + player.wave * 0.07, 3.8);
+            const step = Math.min(moveDistance, speed * enemy.type.speed * dt);
             const radius = 0.5 * enemy.type.scale;
             const oldX = enemy.group.position.x;
             const oldZ = enemy.group.position.z;
             moveWithCollision(enemy.group.position, moveX / moveDistance * step, moveZ / moveDistance * step, radius);
             if (Math.abs(enemy.group.position.x - oldX) + Math.abs(enemy.group.position.z - oldZ) < step * 0.1) {
-              if (dodging || (!pickup && distance <= 12)) {
+              if (escapingZone) {
+                enemy.zoneWaypoint = null;
+              } else if (dodging || (!pickup && distance <= 12)) {
                 enemy.strafe *= -1;
                 if (dodging) enemy.dodgeDirection *= -1;
                 moveWithCollision(enemy.group.position, -moveX / moveDistance * step, -moveZ / moveDistance * step, radius);
