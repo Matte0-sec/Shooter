@@ -200,6 +200,7 @@
     const maxAmmo = 75;
     const ammoPerPickup = 25;
     const pickupRange = 2.5;
+    const enemyPickupSearchRange = 12;
     const keys = new Set();
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
@@ -306,7 +307,7 @@
       group.position.set(point[0], 0, point[1]);
       group.scale.setScalar(type.scale);
       scene.add(group);
-      enemies.push({ group, type, health, weapon, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1, target: null, targetTimer: 0 });
+      enemies.push({ group, type, health, maxHealth: health, ammo: maxAmmo, weapon, cooldown: 1.5 + Math.random() * 2, strafe: Math.random() < 0.5 ? -1 : 1, target: null, targetTimer: 0 });
     }
 
     function updateHud() {
@@ -644,6 +645,11 @@
         : (full ? 'LEBEN VOLL' : 'E · HEILPAKET AUFSAMMELN (+20 LEBEN)');
     }
 
+    function removePickup(pickup) {
+      scene.remove(pickup.group);
+      pickups.splice(pickups.indexOf(pickup), 1);
+    }
+
     function collectPickup() {
       const pickup = nearbyPickup();
       if (!pickup) return;
@@ -654,9 +660,33 @@
         if (player.health === 100) return;
         player.health = Math.min(100, player.health + 20);
       }
-      scene.remove(pickup.group);
-      pickups.splice(pickups.indexOf(pickup), 1);
+      removePickup(pickup);
       updateHud();
+      updatePickupHint();
+    }
+
+    function nearbyEnemyPickup(enemy) {
+      let nearest = null;
+      let nearestDistance = enemyPickupSearchRange;
+      for (const pickup of pickups) {
+        if (pickup.type === 'ammo' ? enemy.ammo >= maxAmmo : enemy.health >= enemy.maxHealth) continue;
+        const distance = Math.hypot(pickup.group.position.x - enemy.group.position.x, pickup.group.position.z - enemy.group.position.z);
+        if (distance <= nearestDistance) {
+          nearest = pickup;
+          nearestDistance = distance;
+        }
+      }
+      return nearest;
+    }
+
+    function collectEnemyPickup(enemy, pickup) {
+      if (Math.hypot(pickup.group.position.x - enemy.group.position.x, pickup.group.position.z - enemy.group.position.z) > pickupRange) return;
+      if (pickup.type === 'ammo') {
+        enemy.ammo = Math.min(maxAmmo, enemy.ammo + ammoPerPickup);
+      } else {
+        enemy.health = Math.min(enemy.maxHealth, enemy.health + 20);
+      }
+      removePickup(pickup);
       updatePickupHint();
     }
 
@@ -862,20 +892,26 @@
           const dz = targetPosition.z - enemy.group.position.z;
           const distance = Math.hypot(dx, dz) || 1;
           enemy.group.rotation.y = Math.atan2(dx, dz);
-          if (distance > 8) {
+          const pickup = state.mode === 'last-protocol' ? nearbyEnemyPickup(enemy) : null;
+          const moveX = pickup ? pickup.group.position.x - enemy.group.position.x : dx;
+          const moveZ = pickup ? pickup.group.position.z - enemy.group.position.z : dz;
+          const moveDistance = Math.hypot(moveX, moveZ) || 1;
+          if (pickup ? moveDistance > pickupRange : distance > 8) {
             const step = Math.min(2.2 + player.wave * 0.07, 3.8) * enemy.type.speed * dt;
             const radius = 0.5 * enemy.type.scale;
             const oldX = enemy.group.position.x;
             const oldZ = enemy.group.position.z;
-            moveWithCollision(enemy.group.position, dx / distance * step, dz / distance * step, radius);
+            moveWithCollision(enemy.group.position, moveX / moveDistance * step, moveZ / moveDistance * step, radius);
             if (Math.abs(enemy.group.position.x - oldX) + Math.abs(enemy.group.position.z - oldZ) < step * 0.1) {
-              moveWithCollision(enemy.group.position, -dz / distance * step * enemy.strafe, dx / distance * step * enemy.strafe, radius);
+              moveWithCollision(enemy.group.position, -moveZ / moveDistance * step * enemy.strafe, moveX / moveDistance * step * enemy.strafe, radius);
             }
           }
+          if (pickup) collectEnemyPickup(enemy, pickup);
           enemy.cooldown -= dt;
           const firingRange = enemy.weapon ? enemy.weapon.range : state.mode === 'last-protocol' ? 34 : 30;
-          if (enemy.cooldown <= 0 && distance < firingRange && hasLineOfSight(enemy, targetPosition)) {
+          if (enemy.cooldown <= 0 && (state.mode !== 'last-protocol' || enemy.ammo > 0) && distance < firingRange && hasLineOfSight(enemy, targetPosition)) {
             enemyShoot(enemy, targetEnemy);
+            if (state.mode === 'last-protocol') enemy.ammo--;
             enemy.cooldown = enemy.weapon ? enemy.weapon.cooldown : Math.max(0.8, 2.4 - player.wave * 0.05) + Math.random();
           }
         }
