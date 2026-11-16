@@ -67,6 +67,7 @@
     const obstacles = [];
     const coverMeshes = [];
     const arenaMeshes = [];
+    const protocolHalfSize = 160;
 
     function box(x, y, z, width, height, depth, mat, solid = false) {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mat);
@@ -128,15 +129,15 @@
         return;
       }
 
-      const halfSize = 112;
+      const halfSize = protocolHalfSize;
       box(0, -0.5, 0, halfSize * 2, 1, halfSize * 2, groundMat);
-      for (let coordinate = -96; coordinate <= 96; coordinate += 24) {
+      for (let coordinate = -halfSize + 16; coordinate <= halfSize - 16; coordinate += 24) {
         box(coordinate, 0.01, 0, 8, 0.02, halfSize * 2, roadMat);
         box(0, 0.02, coordinate, halfSize * 2, 0.02, 8, roadMat);
       }
       let index = 0;
-      for (let x = -84; x <= 84; x += 24) {
-        for (let z = -84; z <= 84; z += 24) {
+      for (let x = -halfSize + 28; x <= halfSize - 28; x += 24) {
+        for (let z = -halfSize + 28; z <= halfSize - 28; z += 24) {
           const width = 13 + (index % 3);
           const depth = 13 + (index % 4);
           const height = 10 + (index * 7 % 13);
@@ -145,10 +146,10 @@
           index++;
         }
       }
-      box(0, 1, -112, halfSize * 2, 2, 1, trimMat, true);
-      box(0, 1, 112, halfSize * 2, 2, 1, trimMat, true);
-      box(-112, 1, 0, 1, 2, halfSize * 2, trimMat, true);
-      box(112, 1, 0, 1, 2, halfSize * 2, trimMat, true);
+      box(0, 1, -halfSize, halfSize * 2, 2, 1, trimMat, true);
+      box(0, 1, halfSize, halfSize * 2, 2, 1, trimMat, true);
+      box(-halfSize, 1, 0, 1, 2, halfSize * 2, trimMat, true);
+      box(halfSize, 1, 0, 1, 2, halfSize * 2, trimMat, true);
       scene.fog.far = 280;
     }
 
@@ -370,31 +371,34 @@
 
     function createProtocolSpawns(count) {
       const positions = [];
-      const cells = Array.from({ length: 100 }, (_, index) => index);
+      const cellsPerSide = 14;
+      const spawnHalfSize = protocolHalfSize - 8;
+      const cellSize = spawnHalfSize * 2 / cellsPerSide;
+      const cells = Array.from({ length: cellsPerSide * cellsPerSide }, (_, index) => index);
       for (let index = cells.length - 1; index > 0; index--) {
         const swapIndex = Math.floor(Math.random() * (index + 1));
         [cells[index], cells[swapIndex]] = [cells[swapIndex], cells[index]];
       }
       for (const cell of cells) {
         if (positions.length >= count) break;
-        const column = cell % 10;
-        const row = Math.floor(cell / 10);
-        const centerX = -100 + column * 20;
-        const centerZ = -100 + row * 20;
+        const column = cell % cellsPerSide;
+        const row = Math.floor(cell / cellsPerSide);
+        const centerX = -spawnHalfSize + (column + 0.5) * cellSize;
+        const centerZ = -spawnHalfSize + (row + 0.5) * cellSize;
         for (let attempt = 0; attempt < 80; attempt++) {
-          const x = centerX + (Math.random() - 0.5) * 18;
-          const z = centerZ + (Math.random() - 0.5) * 18;
-          if (Math.hypot(x, z) < 22 || isBlocked(x, z, 0.7)) continue;
-          if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 22)) continue;
+          const x = centerX + (Math.random() - 0.5) * (cellSize - 2);
+          const z = centerZ + (Math.random() - 0.5) * (cellSize - 2);
+          if (Math.hypot(x, z) < 40 || isBlocked(x, z, 0.7)) continue;
+          if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 30)) continue;
           positions.push([x, z]);
           break;
         }
       }
       for (let attempt = 0; attempt < 40000 && positions.length < count; attempt++) {
-        const x = (Math.random() - 0.5) * 208;
-        const z = (Math.random() - 0.5) * 208;
-        if (Math.hypot(x, z) < 22 || isBlocked(x, z, 0.7)) continue;
-        if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 22)) continue;
+        const x = (Math.random() - 0.5) * spawnHalfSize * 2;
+        const z = (Math.random() - 0.5) * spawnHalfSize * 2;
+        if (Math.hypot(x, z) < 40 || isBlocked(x, z, 0.7)) continue;
+        if (positions.some(([px, pz]) => Math.hypot(px - x, pz - z) < 30)) continue;
         positions.push([x, z]);
       }
       if (positions.length !== count) {
