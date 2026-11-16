@@ -14,7 +14,8 @@
     weaponName: $('weapon-name'), weaponDetail: $('weapon-detail'),
     menuButton: $('menu-button'), fullscreenButton: $('fullscreen-button'),
     secretButton: $('secret-button'), pinBoard: $('pin-board'), pinDisplay: $('pin-display'),
-    pinStatus: $('pin-status'), timeStatus: $('time-status'), codeHint: $('code-hint')
+    pinStatus: $('pin-status'), timeStatus: $('time-status'), codeHint: $('code-hint'),
+    pickupHint: $('pickup-hint'), pickupControl: $('pickup-control')
   };
 
   async function init() {
@@ -175,6 +176,9 @@
     const seekerBulletMat = new THREE.MeshBasicMaterial({ color: 0x78f3d4 });
     const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
     const bulletGeometry = new THREE.SphereGeometry(0.13, 8, 6);
+    const ammoPickupMat = material(0xe4b958, { emissive: 0x72511b, emissiveIntensity: 0.5 });
+    const healthPickupMat = material(0xe9f3ed);
+    const healthCrossMat = material(0xe34f50, { emissive: 0x7d1717, emissiveIntensity: 0.4 });
     const npcWeapons = [
       { name: 'IMPULS', damage: 8, cooldown: 2.1, projectileSpeed: 12, range: 36, color: 0xff765b, bodyWidth: 0.18, barrelLength: 0.5 },
       { name: 'RAPID', damage: 4, cooldown: 0.95, projectileSpeed: 13, range: 30, color: 0xffd05b, bodyWidth: 0.16, barrelLength: 0.38 },
@@ -190,6 +194,10 @@
     const enemies = [];
     const bullets = [];
     const seekerBullets = [];
+    const pickups = [];
+    const maxAmmo = 75;
+    const ammoPerPickup = 25;
+    const pickupRange = 2.5;
     const keys = new Set();
     const raycaster = new THREE.Raycaster();
     const center = new THREE.Vector2(0, 0);
@@ -225,7 +233,7 @@
     const player = {
       health: 100, score: 0, highscore: savedProgress.highscore, money: savedProgress.money, wave: 0, weapon: savedProgress.weapon,
       ownedWeapons: savedProgress.ownedWeapons, timeUnlocked: savedProgress.timeUnlocked,
-      yaw: 0, pitch: 0, verticalSpeed: 0
+      yaw: 0, pitch: 0, verticalSpeed: 0, ammo: maxAmmo
     };
     const state = { started: false, dead: false, locked: false, shopOpen: false, mainMenu: true, mode: 'waves', runMode: null, shooting: false, timeStopped: false, lastShot: 0, waveDelay: 0, messageUntil: 0, flashUntil: 0, hitUntil: 0 };
     const clock = new THREE.Clock();
@@ -315,7 +323,9 @@
       ui.enemies.textContent = enemies.length;
       const weapon = weapons[player.weapon];
       ui.weaponName.innerHTML = `${weapon.name} <em>${weapon.number}</em>`;
-      ui.weaponDetail.textContent = weapon.detail;
+      ui.weaponDetail.textContent = state.mode === 'last-protocol'
+        ? `MUNITION ${player.ammo} / ${maxAmmo}` : weapon.detail;
+      ui.pickupControl.hidden = state.mode !== 'last-protocol';
       ui.codeHint.hidden = !player.timeUnlocked && !player.ownedWeapons.has('seeker');
       document.querySelectorAll('.weapon-card').forEach(card => {
         const item = weapons[card.dataset.weapon];
@@ -485,15 +495,19 @@
     function clearActors() {
       enemies.forEach(enemy => scene.remove(enemy.group));
       bullets.forEach(bullet => scene.remove(bullet.mesh));
+      pickups.forEach(pickup => scene.remove(pickup.group));
       clearSeekerBullets();
       enemies.length = 0;
       bullets.length = 0;
+      pickups.length = 0;
+      ui.pickupHint.hidden = true;
     }
 
     function resetGame() {
       clearActors();
       buildArena(state.mode);
       player.health = 100;
+      player.ammo = maxAmmo;
       player.score = 0;
       player.wave = 0;
       player.yaw = 0;
@@ -548,6 +562,7 @@
         state.hitUntil = now + 130;
       }
       if (enemy.health <= 0) {
+        if (state.mode === 'last-protocol') dropPickups(enemy.group.position);
         scene.remove(enemy.group);
         enemies.splice(enemies.indexOf(enemy), 1);
         if (credited) player.score += enemy.type.score;
@@ -556,6 +571,60 @@
           if (!saveProgress()) showMessage('HIGHSCORE KONNTE NICHT GESPEICHERT WERDEN', 4);
         }
       }
+    }
+
+    function dropPickups(position) {
+      for (const [type, offset] of [['ammo', -0.55], ['health', 0.55]]) {
+        const group = new THREE.Group();
+        if (type === 'ammo') {
+          part(group, 0, 0.3, 0, 0.7, 0.6, 0.5, ammoPickupMat);
+          part(group, 0, 0.61, 0, 0.5, 0.06, 0.3, trimMat);
+        } else {
+          part(group, 0, 0.3, 0, 0.7, 0.6, 0.5, healthPickupMat);
+          part(group, 0, 0.3, 0.26, 0.36, 0.1, 0.03, healthCrossMat);
+          part(group, 0, 0.3, 0.26, 0.1, 0.36, 0.03, healthCrossMat);
+        }
+        group.position.set(position.x + offset, 0, position.z);
+        scene.add(group);
+        pickups.push({ type, group });
+      }
+    }
+
+    function nearbyPickup() {
+      return pickups
+        .filter(pickup => Math.hypot(pickup.group.position.x - camera.position.x, pickup.group.position.z - camera.position.z) <= pickupRange)
+        .sort((a, b) => {
+          const usableA = a.type === 'ammo' ? player.ammo < maxAmmo : player.health < 100;
+          const usableB = b.type === 'ammo' ? player.ammo < maxAmmo : player.health < 100;
+          if (usableA !== usableB) return usableA ? -1 : 1;
+          return a.group.position.distanceToSquared(camera.position) - b.group.position.distanceToSquared(camera.position);
+        })[0];
+    }
+
+    function updatePickupHint() {
+      const pickup = state.mode === 'last-protocol' ? nearbyPickup() : null;
+      ui.pickupHint.hidden = !pickup;
+      if (!pickup) return;
+      const full = pickup.type === 'ammo' ? player.ammo === maxAmmo : player.health === 100;
+      ui.pickupHint.textContent = pickup.type === 'ammo'
+        ? (full ? 'MUNITION VOLL' : 'E · MUNITION AUFSAMMELN (+25)')
+        : (full ? 'LEBEN VOLL' : 'E · HEILPAKET AUFSAMMELN (+20 LEBEN)');
+    }
+
+    function collectPickup() {
+      const pickup = nearbyPickup();
+      if (!pickup) return;
+      if (pickup.type === 'ammo') {
+        if (player.ammo === maxAmmo) return;
+        player.ammo = Math.min(maxAmmo, player.ammo + ammoPerPickup);
+      } else {
+        if (player.health === 100) return;
+        player.health = Math.min(100, player.health + 20);
+      }
+      scene.remove(pickup.group);
+      pickups.splice(pickups.indexOf(pickup), 1);
+      updateHud();
+      updatePickupHint();
     }
 
     function nearestEnemy(position) {
@@ -610,13 +679,24 @@
       const weapon = weapons[player.weapon];
       if (now - state.lastShot < weapon.cooldown) return;
       state.lastShot = now;
-      gun.position.z = -0.55;
+      if (state.mode === 'last-protocol' && player.ammo === 0) {
+        showMessage('KEINE MUNITION · MIT E AUFSAMMELN');
+        return;
+      }
+      let target;
       if (player.weapon === 'seeker') {
-        const target = nearestEnemy(camera.position);
+        target = nearestEnemy(camera.position);
         if (!target) {
           showMessage('KEIN GEGNER GEFUNDEN');
           return;
         }
+      }
+      if (state.mode === 'last-protocol') {
+        player.ammo--;
+        updateHud();
+      }
+      gun.position.z = -0.55;
+      if (player.weapon === 'seeker') {
         const mesh = new THREE.Mesh(bulletGeometry, seekerBulletMat);
         mesh.position.copy(camera.position);
         scene.add(mesh);
@@ -721,6 +801,7 @@
         const dx = (Math.cos(player.yaw) * sideways - Math.sin(player.yaw) * forward) * speed;
         const dz = (-Math.sin(player.yaw) * sideways - Math.cos(player.yaw) * forward) * speed;
         moveWithCollision(camera.position, dx, dz, 0.45);
+        updatePickupHint();
         player.verticalSpeed -= 20 * dt;
         camera.position.y += player.verticalSpeed * dt;
         if (camera.position.y <= groundHeight) {
@@ -992,6 +1073,11 @@
     });
     document.addEventListener('keydown', event => {
       if (!state.locked) return;
+      if (event.code === 'KeyE' && state.mode === 'last-protocol') {
+        event.preventDefault();
+        if (!event.repeat && !state.dead) collectPickup();
+        return;
+      }
       if (event.code === 'Delete') {
         event.preventDefault();
         if (!event.repeat) deactivateSecretCodes();
